@@ -5,7 +5,7 @@ Direct 단계부터 strategy="direct"를 기록하고, 이후 동일한 스키�
 
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -46,14 +46,33 @@ class StrategyOutput:
 
 
 @dataclass
+class TestCaseResult:
+    test_index: int
+    passed: bool
+    status: str
+
+    input_text: str
+    expected_output: str
+    actual_output: str
+
+    execution_time: float
+    return_code: int | None = None
+    stderr: str = ""
+
+
+@dataclass
 class EvaluationResult:
     passed: bool
     status: str
+
     passed_tests: int
     total_tests: int
     execution_time: float
-    stdout: str = ""
-    stderr: str = ""
+
+    test_results: list[TestCaseResult] = field(
+        default_factory=list
+    )
+    error_message: str | None = None
 
 
 @dataclass
