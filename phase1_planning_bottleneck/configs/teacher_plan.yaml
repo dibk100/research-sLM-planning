@@ -22,7 +22,7 @@ generation:
 
 strategy:
   name: teacher_plan
-  plan_path: data/teacher_plans/livecodebench_v6_teacher_plans.jsonl
+  plan_path: /mnt/hdd/project_sLM_planning/data/teacher_plans/livecodebench_v6_teacher_plans_opus5_v1.jsonl
   code_prompt_path: prompts/teacher_plan_code.txt
   require_verified: false
   system_prompt: >
