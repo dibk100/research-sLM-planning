@@ -7,7 +7,7 @@ dataset:
   split: test
   release_version: release_v6
   test_type: stdin
-  limit: 10
+  limit: 50
 
 model:
   name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
@@ -35,5 +35,5 @@ evaluation:
   include_private_tests: true
 
 output:
-  path: outputs/self_plan_stdin/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/output/self_plan_50_stdin/results.jsonl
   resume: true
