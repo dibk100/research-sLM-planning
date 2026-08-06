@@ -1,0 +1,25 @@
+﻿algorithm_category,count,proportion
+Grid / Brute Force,2,0.07692307692307693
+Dynamic Programming,2,0.07692307692307693
+Math / Number Theory,1,0.038461538461538464
+Prefix Sum / Divisor Enumeration,1,0.038461538461538464
+String / Simulation,1,0.038461538461538464
+Simulation,1,0.038461538461538464
+String / Counting,1,0.038461538461538464
+Greedy / Bit Manipulation,1,0.038461538461538464
+Graph BFS + Bitmask DP,1,0.038461538461538464
+Counting DP / Combinatorics,1,0.038461538461538464
+Graph / Amortized Data Structure,1,0.038461538461538464
+Graph / 0-1 BFS,1,0.038461538461538464
+Simulation / Hash Set,1,0.038461538461538464
+Sorting / Simulation,1,0.038461538461538464
+Graph / BFS,1,0.038461538461538464
+Sorting / Binary Search,1,0.038461538461538464
+Disjoint Set Union,1,0.038461538461538464
+Prefix Sum / Binary Search,1,0.038461538461538464
+Graph / Dijkstra-style Relaxation,1,0.038461538461538464
+Sorting / Counting,1,0.038461538461538464
+Fenwick Tree / Order Statistics,1,0.038461538461538464
+Hash Map / Simulation,1,0.038461538461538464
+Sorting / Exact Rational Comparison,1,0.038461538461538464
+Grid / BFS,1,0.038461538461538464

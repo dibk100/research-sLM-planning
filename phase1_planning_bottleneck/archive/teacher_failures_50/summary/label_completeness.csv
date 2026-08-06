@@ -1,0 +1,8 @@
+﻿label_column,labeled_count,missing_count,completion_rate
+teacher_plan_correctness,26,0,1.0
+implementation_fidelity,26,0,1.0
+primary_bottleneck,26,0,1.0
+failure_type,26,0,1.0
+algorithm_category,26,0,1.0
+missing_or_wrong_information,26,0,1.0
+analysis_note,26,0,1.0

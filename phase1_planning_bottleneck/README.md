@@ -10,112 +10,9 @@
 
 ### Note.
 
-현재 진행 상황 기록하기.
-
-- (Direct baseline Done) Phase1의 Direct baseline용 전체 실험 파이프라인과 로그,분석 인프라를 완성했고, stdin subset 10문제 smoke test까지 검증함.
-
-
-
-### 폴더 아키텍처
-```
-phase1_planning_bottleneck/
-├── README.md
-├── requirements.txt
-├── configs/
-│   ├── base.yaml
-│   ├── model/
-│   │   ├── qwen2.5_coder_3b.yaml
-│   │   └── teacher_model.yaml
-│   ├── dataset/
-│   │   ├── humaneval_plus.yaml
-│   │   ├── mbpp_plus.yaml
-│   │   └── livecodebench.yaml
-│   └── experiment/
-│       ├── direct.yaml
-│       ├── self_plan.yaml
-│       └── teacher_plan.yaml
-│
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   ├── teacher_plans/
-│   └── splits/
-│
-├── prompts/
-│   ├── direct.txt
-│   ├── self_plan.txt
-│   ├── self_plan_code.txt
-│   ├── teacher_plan.txt
-│   └── teacher_plan_generation.txt
-│
-├── src/
-│   ├── __init__.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── model_loader.py
-│   │   └── generator.py
-│   │
-│   ├── datasets/
-│   │   ├── __init__.py
-│   │   ├── base_dataset.py
-│   │   ├── humaneval_plus.py
-│   │   ├── mbpp_plus.py
-│   │   └── livecodebench.py
-│   │
-│   ├── strategies/
-│   │   ├── __init__.py
-│   │   ├── base_strategy.py
-│   │   ├── direct.py
-│   │   ├── self_plan.py
-│   │   └── teacher_plan.py
-│   │
-│   ├── execution/
-│   │   ├── __init__.py
-│   │   ├── code_extractor.py
-│   │   ├── sandbox.py
-│   │   ├── evaluator.py
-│   │   └── result_parser.py
-│   │
-│   ├── analysis/
-│   │   ├── __init__.py
-│   │   ├── aggregate_results.py
-│   │   ├── compare_conditions.py
-│   │   ├── difficulty_analysis.py
-│   │   ├── plan_analysis.py
-│   │   └── failure_analysis.py
-│   │
-│   └── utils/
-│       ├── config.py
-│       ├── io.py
-│       ├── logging.py
-│       ├── seed.py
-│       └── schema.py
-│
-├── scripts/
-│   ├── prepare_dataset.py
-│   ├── generate_teacher_plans.py
-│   ├── run_direct.py
-│   ├── run_self_plan.py
-│   ├── run_teacher_plan.py
-│   ├── run_all.py
-│   ├── evaluate.py
-│   └── analyze.py
-│
-├── outputs/
-│   ├── generations/
-│   ├── executions/
-│   ├── metrics/
-│   ├── figures/
-│   └── logs/
-│
-└── tests/
-    ├── test_code_extractor.py
-    ├── test_prompt_builder.py
-    ├── test_result_schema.py
-    └── test_evaluator.py
-
-```
-
+- (cross-dataset generalization 실험)
+    - APPS(2021년에 공개된 데이터셋임)
+    - livecodebench-v5, etc
 
 ### 실험 구성 :
 
@@ -132,7 +29,7 @@ phase1_planning_bottleneck/
 - 호출 2: 계획 기반 코드 생성(Problem + Generated Plan → Code)
 
 3. Teacher-Planning :
-강한 모델(Teacher,LLM)이 생성한 계획을 입력으로 제공하고, 작은 모델은 해당 계획만을 이용하여 코드를 구현한다.
+강한 모델(Teacher,claude-opus-5 사용)이 생성한 계획을 입력으로 제공하고, 작은 모델은 해당 계획만을 이용하여 코드를 구현한다.
 
 - Teacher plan은 실험 전에 미리 생성하고 고정
 - 실험 시에는 Teacher 모델을 다시 호출하지 않고 저장된 계획을 읽도록 함.
