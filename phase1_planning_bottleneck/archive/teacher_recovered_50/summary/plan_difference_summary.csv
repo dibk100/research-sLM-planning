@@ -1,0 +1,8 @@
+﻿plan_difference_category,count,proportion
+Decision Condition,5,0.3125
+Problem Misunderstanding,4,0.25
+Algorithm Selection,2,0.125
+Implementation Detail Specification,2,0.125
+Recurrence / State Definition,1,0.0625
+Numerical Precision,1,0.0625
+Complexity / Efficiency,1,0.0625

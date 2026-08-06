@@ -1,0 +1,4 @@
+﻿difficulty,num_recovered,mean_self_test_pass_ratio,mean_teacher_test_pass_ratio,mean_test_pass_ratio_delta
+easy,7,0.22673992673992674,1.0,0.7732600732600733
+medium,5,0.30583333333333335,1.0,0.6941666666666666
+hard,4,0.4128205128205128,1.0,0.5871794871794871

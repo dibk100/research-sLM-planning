@@ -1,0 +1,7 @@
+﻿metric,value
+num_recovered,16.0
+mean_self_test_pass_ratio,0.29797676282051283
+mean_teacher_test_pass_ratio,1.0
+mean_test_pass_ratio_delta,0.7020232371794872
+mean_self_total_tokens,1770.25
+mean_teacher_total_tokens,911.8125

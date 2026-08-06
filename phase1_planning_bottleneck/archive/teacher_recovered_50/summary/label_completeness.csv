@@ -1,0 +1,8 @@
+﻿label_column,labeled_count,missing_count,completion_rate
+self_plan_correctness,16,0,1.0
+teacher_plan_correctness,16,0,1.0
+plan_difference_category,16,0,1.0
+recovery_mechanism,16,0,1.0
+algorithm_category,16,0,1.0
+key_teacher_information,16,0,1.0
+analysis_note,16,0,1.0

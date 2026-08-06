@@ -1,0 +1,76 @@
+====================================================================================================
+abc302_a | Attack | easy
+====================================================================================================
+
+[Recovery Pattern]
+Direct       : PASS
+Self-Plan    : WRONG_ANSWER
+Teacher-Plan : PASS
+
+[Problem]
+
+
+[Self-Generated Plan]
+- **Core Algorithm**: Calculate the number of attacks required to reduce the enemy's stamina to 0 or less.
+- **Decision Condition**: The number of attacks needed is the ceiling of the division of the enemy's initial stamina by the attack power.
+- **Key Invariant**: The number of attacks is always non-negative and represents the minimum number of times the enemy's stamina must be reduced to 0 or less.
+- **Data Structures**: No additional data structures are needed beyond basic arithmetic operations.
+- **Edge Cases**: 
+  - If \( A = 0 \), the output should be 0 because no attacks are needed.
+  - If \( B = 0 \), the output should be 1 if \( A > 0 \) and 0 if \( A = 0 \).
+- **Time Complexity**: \( O(1) \) since the calculation involves a simple division and ceiling operation.
+- **Space Complexity**: \( O(1) \) as no additional space is used beyond a few variables.
+
+[Teacher Plan]
+- The answer is the ceiling of A divided by B, computed as (A + B - 1) // B.
+- Use integer arithmetic only; floating-point division loses precision because A and B reach 10^18.
+- Correctness: after x attacks the stamina is A - xB, which is <= 0 exactly when x >= A/B, so the smallest such integer is the ceiling.
+- Edge cases: B >= A gives 1, and A divisible by B gives exactly A // B with no extra attack.
+- No data structures are needed beyond reading two integers.
+- Time and memory are O(1).
+
+[Self-Plan Extracted Code]
+import math
+
+# Read input values
+A, B = map(int, input().split())
+
+# Calculate the number of attacks needed
+attacks = math.ceil(A / B)
+
+# Print the result
+print(attacks)
+
+[Teacher-Plan Extracted Code]
+import sys
+
+def main():
+    # Read input values
+    A, B = map(int, sys.stdin.readline().split())
+    
+    # Calculate the number of attacks needed
+    attacks_needed = (A + B - 1) // B
+    
+    # Print the result
+    print(attacks_needed)
+
+if __name__ == "__main__":
+    main()
+
+[Self-Plan Evaluation]
+Status       : WRONG_ANSWER
+Passed tests : 11/15
+Error        : Test 2: expected='499999999999999999\n', actual='500000000000000000\n'
+
+[Teacher-Plan Evaluation]
+Status       : PASS
+Passed tests : 15/15
+
+[Manual Analysis]
+Self plan correctness      : 
+Teacher plan correctness   : 
+Plan difference category   : 
+Recovery mechanism         : 
+Algorithm category         : 
+Key teacher information    : 
+Analysis note              : 

@@ -1,0 +1,9 @@
+﻿recovery_mechanism,count,proportion
+Correct Decision Condition,3,0.1875
+Correct Problem Reformulation,3,0.1875
+Correct Algorithm Specification,3,0.1875
+Explicit Closed-Form Formula,2,0.125
+Explicit Procedure Specification,2,0.125
+Correct Recurrence Specification,1,0.0625
+Complete Decision Condition,1,0.0625
+Explicit Integer Arithmetic Requirement,1,0.0625

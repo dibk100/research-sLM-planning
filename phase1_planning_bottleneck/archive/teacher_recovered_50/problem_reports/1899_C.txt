@@ -1,0 +1,106 @@
+====================================================================================================
+1899_C | C. Yarik and Array | hard
+====================================================================================================
+
+[Recovery Pattern]
+Direct       : WRONG_ANSWER
+Self-Plan    : WRONG_ANSWER
+Teacher-Plan : PASS
+
+[Problem]
+
+
+[Self-Generated Plan]
+- **Core Algorithm**: Use Kadane's algorithm to find the maximum sum of a subarray with alternating parities.
+- **Decision Condition**: For each element, decide whether to start a new subarray or continue the existing one based on the parity of the current element and the last element of the current subarray.
+- **Key Invariant**: Maintain two variables, `max_odd` and `max_even`, to keep track of the maximum sum of subarrays ending with an odd and even element, respectively.
+- **Data Structures**: Use two arrays, `odd` and `even`, to store the maximum sums ending at each index with odd and even parities.
+- **Edge Cases**: Handle cases where the array has only one element, where the entire array has the same parity, and where the array is empty.
+- **Time Complexity**: $O(n)$, where $n$ is the length of the array. This is because each element is processed a constant number of times.
+- **Space Complexity**: $O(1)$, as we only use a fixed amount of extra space regardless of the input size.
+
+[Teacher Plan]
+- Run a Kadane-style scan in which the running sum may be extended only when the current element's parity differs from the previous element's parity.
+- Transition: if i > 0 and a[i] and a[i-1] have different parities, set cur = max(a[i], cur + a[i]); otherwise set cur = a[i]; the answer is the maximum cur seen.
+- Invariant: cur is the maximum sum of an alternating-parity subarray that ends exactly at index i.
+- Edge cases: the subarray must be non-empty, so initialize the answer with the first element rather than 0; an all-negative array correctly returns its maximum single element.
+- Compute parity with a[i] % 2 or a[i] & 1, which is correct for negative values in Python; no extra data structure is needed.
+- Time is O(n) per test case with O(1) extra memory; the sum of n is at most 2 * 10^5.
+
+[Self-Plan Extracted Code]
+def max_alternating_subarray_sum(arr):
+    if len(arr) == 1:
+        return arr[0]
+    
+    max_odd = max_even = arr[0]
+    for i in range(1, len(arr)):
+        if arr[i] % 2 == 0:
+            # If the current element is even, add it to the max_even subarray
+            max_even = max(max_even + arr[i], arr[i])
+            # The max_odd subarray ends at the previous even element
+            max_odd = max(max_odd, max_even - arr[i])
+        else:
+            # If the current element is odd, add it to the max_odd subarray
+            max_odd = max(max_odd + arr[i], arr[i])
+            # The max_even subarray ends at the previous odd element
+            max_even = max(max_even, max_odd - arr[i])
+    
+    return max(max_odd, max_even)
+
+def main():
+    t = int(input())
+    for _ in range(t):
+        n = int(input())
+        arr = list(map(int, input().split()))
+        print(max_alternating_subarray_sum(arr))
+
+if __name__ == "__main__":
+    main()
+
+[Teacher-Plan Extracted Code]
+def max_alternating_sum_subarray():
+    import sys
+    input = sys.stdin.read
+    data = input().split()
+    t = int(data[0])
+    del data[:1]
+    
+    for _ in range(t):
+        n = int(data[0])
+        del data[:1]
+        
+        a = list(map(int, data))
+        del data[:n]
+        
+        ans = a[0]
+        cur = a[0]
+        
+        for i in range(1, n):
+            if (a[i] % 2) != (a[i-1] % 2):
+                cur = max(a[i], cur + a[i])
+            else:
+                cur = a[i]
+            
+            ans = max(ans, cur)
+        
+        print(ans)
+
+max_alternating_sum_subarray()
+
+[Self-Plan Evaluation]
+Status       : WRONG_ANSWER
+Passed tests : 6/13
+Error        : Test 0: expected='15\n17\n8\n4\n-1000\n101\n10\n', actual='9\n25\n9\n6\n-1000\n103\n49\n'
+
+[Teacher-Plan Evaluation]
+Status       : PASS
+Passed tests : 13/13
+
+[Manual Analysis]
+Self plan correctness      : 
+Teacher plan correctness   : 
+Plan difference category   : 
+Recovery mechanism         : 
+Algorithm category         : 
+Key teacher information    : 
+Analysis note              : 
