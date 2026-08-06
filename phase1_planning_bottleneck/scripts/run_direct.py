@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import traceback
-from dataclasses import asdict
 from pathlib import Path
 
 from src.datasets.dataset_loader import DatasetLoader
@@ -31,15 +30,14 @@ from src.execution.code_extractor import (
 )
 from src.execution.evaluator import Evaluator
 from src.models.generator import ModelGenerator
-from src.schemas import (
-    EvaluationResult,
-    ExperimentRecord,
-)
+from src.schemas import EvaluationResult
 from src.strategies.direct import DirectStrategy
 from src.utils.config import load_config
 from src.utils.jsonl_logger import JSONLLogger
-from src.utils.record_builder import (
-    build_experiment_record,
+from src.utils.record_builder import build_experiment_record
+from src.utils.run_metadata import (
+    save_run_config,
+    save_run_metadata,
 )
 from src.utils.seed import set_seed
 
@@ -101,6 +99,7 @@ def build_extraction_failure_evaluation(
 
 
 def main() -> None:
+    
     args = parse_args()
     config = load_config(args.config)
 
@@ -132,24 +131,36 @@ def main() -> None:
         and not args.no_resume
     )
 
+    # CLI override를 실제 실행 설정에 반영한다.
+    dataset_config["limit"] = dataset_limit
+    output_config["path"] = str(output_path)
+    output_config["resume"] = resume
+
+    output_dir = output_path.parent
+
+    run_config_path = save_run_config(
+        config=config,
+        output_dir=output_dir,
+        overwrite=False,                                # overwrite=True로 설정하면 기존 config를 덮어쓰게 딤
+    )
+
+    run_metadata_path = save_run_metadata(
+        config=config,
+        output_dir=output_dir,
+        overwrite=False,
+    )
+
     print("=" * 80)
     print("Phase1 Direct Experiment")
     print("=" * 80)
-    print(
-        f"Experiment : "
-        f"{experiment_config['name']}"
-    )
-    print(
-        f"Dataset    : "
-        f"{dataset_config['name']}"
-    )
-    print(
-        f"Model      : "
-        f"{model_config['name_or_path']}"
-    )
+    print(f"Experiment : {experiment_config['name']}")
+    print(f"Dataset    : {dataset_config['name']}")
+    print(f"Model      : {model_config['name_or_path']}")
     print(f"Seed       : {seed}")
     print(f"Limit      : {dataset_limit}")
     print(f"Output     : {output_path}")
+    print(f"Run config : {run_config_path}")
+    print(f"Metadata   : {run_metadata_path}")
     print(f"Resume     : {resume}")
     print()
 
