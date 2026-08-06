@@ -3,6 +3,21 @@
 
 Direct 단계부터 strategy="direct"를 기록하고, 이후 동일한 스키마로 self_plan, teacher_plan을 저장할 수 있도록 구성함.
 
+formatted_prompt
+= 최종 코드 생성에 사용한 프롬프트
+
+raw_output
+= 최종 코드 생성 출력
+
+prompt_tokens
+= 계획 호출 + 코드 호출의 전체 입력 토큰
+
+completion_tokens
+= 계획 호출 + 코드 호출의 전체 생성 토큰
+
+generation_time
+= 계획 호출 + 코드 호출의 전체 생성 시간
+
 """
 
 from dataclasses import asdict, dataclass, field
@@ -36,15 +51,33 @@ class GenerationOutput:
 
 
 @dataclass
-class StrategyOutput:
-    problem_id: str
-    strategy: str
+class GenerationStep:
+    name: str
     formatted_prompt: str
     raw_output: str
-
     prompt_tokens: int
     completion_tokens: int
     generation_time: float
+
+
+@dataclass
+class StrategyOutput:
+    problem_id: str
+    strategy: str
+
+    # 최종 코드 생성 단계
+    formatted_prompt: str
+    raw_output: str
+
+    # 전략 전체 비용
+    prompt_tokens: int
+    completion_tokens: int
+    generation_time: float
+
+    # 단계별 생성 기록
+    strategy_trace: list[GenerationStep] = field(
+        default_factory=list
+    )
 
 
 @dataclass
@@ -111,8 +144,12 @@ class ExperimentRecord:
     total_tests: int
     execution_time: float
 
+    # Optional fields
     error_message: str | None = None
     test_results: list[dict[str, Any]] = field(
+        default_factory=list
+    )
+    strategy_trace: list[dict[str, Any]] = field(
         default_factory=list
     )
 

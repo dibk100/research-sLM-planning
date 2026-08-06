@@ -1,0 +1,18 @@
+Analyze the following competitive programming problem and produce a concise implementation plan.
+
+Requirements:
+- Identify the core algorithm.
+- Explain the key invariant or reasoning.
+- Specify the required data structures.
+- Describe the input and output handling.
+- Analyze the time and space complexity.
+- Do not write Python code.
+- Return only the implementation plan.
+
+Problem Title:
+{title}
+
+Problem:
+{problem}
+
+{starter_code_section}

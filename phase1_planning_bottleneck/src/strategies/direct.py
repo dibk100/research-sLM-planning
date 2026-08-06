@@ -16,6 +16,7 @@ from pathlib import Path
 
 from src.models.generator import ModelGenerator
 from src.schemas import (
+    GenerationStep,
     ProblemExample,
     StrategyOutput,
 )
@@ -122,4 +123,14 @@ class DirectStrategy:
             prompt_tokens=generation.prompt_tokens,
             completion_tokens=generation.completion_tokens,
             generation_time=generation.generation_time,
+            strategy_trace=[
+                GenerationStep(
+                    name="code_generation",
+                    formatted_prompt=formatted_prompt,
+                    raw_output=generation.text,
+                    prompt_tokens=generation.prompt_tokens,
+                    completion_tokens=generation.completion_tokens,
+                    generation_time=generation.generation_time,
+                )
+            ],
         )

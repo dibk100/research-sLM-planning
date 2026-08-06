@@ -66,8 +66,14 @@ def build_experiment_record(
         execution_time=evaluation.execution_time,
 
         error_message=evaluation.error_message,
+
         test_results=[
             asdict(test_result)
             for test_result in evaluation.test_results
+        ],
+
+        strategy_trace=[
+            asdict(step)
+            for step in strategy_output.strategy_trace
         ],
     )
