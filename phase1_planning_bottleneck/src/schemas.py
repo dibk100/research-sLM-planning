@@ -39,7 +39,7 @@ class GenerationOutput:
 class StrategyOutput:
     problem_id: str
     strategy: str
-    prompt: str
+    formatted_prompt: str
     raw_output: str
 
     prompt_tokens: int
@@ -93,11 +93,13 @@ class ExperimentRecord:
     contest_date: str
     difficulty: str
 
+    # Problem and model input
+    problem: str
+    formatted_prompt: str
+
     # Generation
-    prompt: str
     raw_output: str
     extracted_code: str
-
     prompt_tokens: int
     completion_tokens: int
     generation_time: float
@@ -109,7 +111,6 @@ class ExperimentRecord:
     total_tests: int
     execution_time: float
 
-    # Optional diagnostics
     error_message: str | None = None
     test_results: list[dict[str, Any]] = field(
         default_factory=list

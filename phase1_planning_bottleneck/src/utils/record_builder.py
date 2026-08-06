@@ -49,7 +49,9 @@ def build_experiment_record(
         contest_date=example.contest_date,
         difficulty=example.difficulty,
 
-        prompt=strategy_output.prompt,
+        problem=example.prompt,
+        formatted_prompt=strategy_output.formatted_prompt,
+
         raw_output=strategy_output.raw_output,
         extracted_code=extracted_code,
 

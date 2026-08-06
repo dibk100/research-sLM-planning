@@ -104,10 +104,10 @@ class DirectStrategy:
         example: ProblemExample,
     ) -> StrategyOutput:
         """문제 하나에 대해 direct generation을 수행한다."""
-        prompt = self.build_prompt(example)
+        formatted_prompt = self.build_prompt(example)
 
         generation = self.generator.generate(
-            prompt=prompt,
+            prompt=formatted_prompt,
             system_prompt=self.system_prompt,
             max_new_tokens=self.max_new_tokens,
             temperature=self.temperature,
@@ -117,7 +117,7 @@ class DirectStrategy:
         return StrategyOutput(
             problem_id=example.problem_id,
             strategy=self.name,
-            prompt=prompt,
+            formatted_prompt=formatted_prompt,
             raw_output=generation.text,
             prompt_tokens=generation.prompt_tokens,
             completion_tokens=generation.completion_tokens,

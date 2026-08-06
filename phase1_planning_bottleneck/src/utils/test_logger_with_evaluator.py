@@ -64,7 +64,7 @@ def main() -> None:
     strategy_output = StrategyOutput(
         problem_id=example.problem_id,
         strategy="direct",
-        prompt="test prompt",
+        formatted_prompt="test prompt",
         raw_output=f"```python\n{CORRECT_CODE}\n```",
         prompt_tokens=100,
         completion_tokens=80,
