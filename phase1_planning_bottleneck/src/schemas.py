@@ -5,19 +5,24 @@ Direct 단계부터 strategy="direct"를 기록하고, 이후 동일한 스키�
 
 """
 
-
-
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
+
 
 @dataclass
 class ProblemExample:
     problem_id: str
+    title: str
     prompt: str
-    tests: Any
-    entry_point: str | None = None
-    difficulty: str | None = None
-    source: str | None = None
+    platform: str
+    contest_id: str
+    contest_date: str
+    difficulty: str
+    starter_code: str
+    public_tests: list[dict[str, Any]]
+    private_tests: list[dict[str, Any]]
+    metadata: dict[str, Any]
+    source: str = "livecodebench_v6"
 
 
 @dataclass
