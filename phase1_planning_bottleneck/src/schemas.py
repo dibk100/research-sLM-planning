@@ -5,7 +5,7 @@ Direct 단계부터 strategy="direct"를 기록하고, 이후 동일한 스키�
 
 """
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
@@ -76,29 +76,42 @@ class EvaluationResult:
 
 
 @dataclass
-class GenerationRecord:
+class ExperimentRecord:
+    # Experiment identity
     problem_id: str
     dataset: str
     strategy: str
     model_name: str
     seed: int
 
+    # Problem metadata
+    title: str
+    platform: str
+    contest_id: str
+    contest_date: str
+    difficulty: str
+
+    # Generation
     prompt: str
     raw_output: str
-    code: str
+    extracted_code: str
 
     prompt_tokens: int
     completion_tokens: int
     generation_time: float
 
+    # Evaluation
     passed: bool
     status: str
     passed_tests: int
     total_tests: int
     execution_time: float
 
-    difficulty: str | None = None
+    # Optional diagnostics
     error_message: str | None = None
+    test_results: list[dict[str, Any]] = field(
+        default_factory=list
+    )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
