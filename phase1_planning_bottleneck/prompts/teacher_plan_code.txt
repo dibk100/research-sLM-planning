@@ -1,0 +1,22 @@
+Solve the following competitive programming problem in Python using the provided expert plan.
+
+Requirements:
+- Follow the expert plan carefully.
+- Return only the final Python code.
+- Do not include explanations.
+- Do not include Markdown code fences.
+- Read input from standard input.
+- Write output to standard output.
+- Use an efficient algorithm.
+- Preserve all decision conditions and edge cases stated in the plan.
+
+Problem Title:
+{title}
+
+Problem:
+{problem}
+
+Expert Plan:
+{teacher_plan}
+
+{starter_code_section}

@@ -79,6 +79,10 @@ class StrategyOutput:
         default_factory=list
     )
 
+    teacher_plan: str | None = None
+    teacher_plan_source: str | None = None
+    teacher_plan_version: str | None = None
+    teacher_plan_verified: bool | None = None
 
 @dataclass
 class TestCaseResult:
@@ -152,6 +156,11 @@ class ExperimentRecord:
     strategy_trace: list[dict[str, Any]] = field(
         default_factory=list
     )
+
+    teacher_plan: str | None = None
+    teacher_plan_source: str | None = None
+    teacher_plan_version: str | None = None
+    teacher_plan_verified: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

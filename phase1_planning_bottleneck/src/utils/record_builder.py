@@ -76,4 +76,15 @@ def build_experiment_record(
             asdict(step)
             for step in strategy_output.strategy_trace
         ],
+        
+        teacher_plan=strategy_output.teacher_plan,
+        teacher_plan_source=(
+            strategy_output.teacher_plan_source
+        ),
+        teacher_plan_version=(
+            strategy_output.teacher_plan_version
+        ),
+        teacher_plan_verified=(
+            strategy_output.teacher_plan_verified
+        ),
     )
