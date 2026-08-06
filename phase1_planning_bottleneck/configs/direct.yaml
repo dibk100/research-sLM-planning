@@ -5,6 +5,8 @@ experiment:
 dataset:
   name: livecodebench_v6
   split: test
+  release_version: release_v6
+  test_type: stdin
   limit: 10                  # num_rows: 1055
 
 model:
@@ -31,5 +33,5 @@ evaluation:
   include_private_tests: true
 
 output:
-  path: outputs/direct/results.jsonl
+  path: outputs/direct_stdin/results.jsonl
   resume: true

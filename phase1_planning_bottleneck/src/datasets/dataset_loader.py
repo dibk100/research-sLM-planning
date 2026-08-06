@@ -1,31 +1,12 @@
 """
 벤치마크 문제 로딩.
 
-- 원본 데이터셋 로드
-- 내부 ProblemExample 형식으로 변환
-- subset 선택
-- problem ID 기준 필터링
-- 문제 순서 고정
+기존 순서 : 
+전체 데이터 → 첫 10개 선택 → stdin 필터
 
-
-초기에 확인할 것 :
-examples = loader.load()
-
-print(len(examples))
-print(examples[0].problem_id)
-print(examples[0].prompt)
-
-
-Dataset Loader 완료 조건 :
-- 문제 1개 이상 정상 로드
-- problem_id가 고유함
-- prompt와 test 정보가 누락되지 않음
-- 같은 설정에서 항상 같은 문제 순서가 나옴
-
-HumanEval+, MBPP+, APPS, CodeContests, Codeforces, LeetCode 등 다양한 문제를 로드할 수 있도록 구현 필요
-우선 Livecodebench-v6 문제를 로드하는 DatasetLoader 구현
+수정 버전 :
+전체 데이터 → stdin 필터 → 필터된 문제 중 첫 10개 선택
 """
-
 import base64
 import json
 import pickle
@@ -38,18 +19,40 @@ from src.schemas import ProblemExample
 
 
 class DatasetLoader:
+    SUPPORTED_TEST_TYPES = {
+        "stdin",
+        "functional",
+    }
+
     def __init__(
         self,
         dataset_name: str = "livecodebench_v6",
         split: str = "test",
         limit: int | None = None,
+        test_type: str | None = "stdin",
+        release_version: str = "release_v6",
     ) -> None:
         self.dataset_name = dataset_name
         self.split = split
         self.limit = limit
+        self.test_type = test_type
+        self.release_version = release_version
 
         if self.limit is not None and self.limit <= 0:
-            raise ValueError("limit must be greater than 0.")
+            raise ValueError(
+                "limit must be greater than 0."
+            )
+
+        if (
+            self.test_type is not None
+            and self.test_type not in self.SUPPORTED_TEST_TYPES
+        ):
+            raise ValueError(
+                f"Unsupported test_type: {self.test_type}. "
+                f"Choose from "
+                f"{sorted(self.SUPPORTED_TEST_TYPES)} "
+                f"or None."
+            )
 
     def load(self) -> list[ProblemExample]:
         if self.dataset_name != "livecodebench_v6":
@@ -67,15 +70,10 @@ class DatasetLoader:
     ) -> list[ProblemExample]:
         dataset = load_dataset(
             "livecodebench/code_generation_lite",
-            version_tag="release_v6",
+            version_tag=self.release_version,
             split=self.split,
             trust_remote_code=True,
         )
-
-        if self.limit is not None:
-            dataset = dataset.select(
-                range(min(self.limit, len(dataset)))
-            )
 
         examples: list[ProblemExample] = []
 
@@ -92,6 +90,19 @@ class DatasetLoader:
                 row["private_test_cases"],
                 problem_id=problem_id,
             )
+
+            problem_test_type = self._infer_test_type(
+                public_tests=public_tests,
+                private_tests=private_tests,
+                problem_id=problem_id,
+            )
+
+            # test_type=None이면 모든 유형을 로드한다.
+            if (
+                self.test_type is not None
+                and problem_test_type != self.test_type
+            ):
+                continue
 
             metadata = self._decode_json_field(
                 row["metadata"],
@@ -111,11 +122,55 @@ class DatasetLoader:
                 public_tests=public_tests,
                 private_tests=private_tests,
                 metadata=metadata,
+                test_type=problem_test_type,
             )
 
             examples.append(example)
 
+            # 필터링 이후 limit을 적용한다.
+            if (
+                self.limit is not None
+                and len(examples) >= self.limit
+            ):
+                break
+
         return examples
+
+    @classmethod
+    def _infer_test_type(
+        cls,
+        *,
+        public_tests: list[dict[str, Any]],
+        private_tests: list[dict[str, Any]],
+        problem_id: str,
+    ) -> str:
+        all_tests = public_tests + private_tests
+
+        if not all_tests:
+            raise ValueError(
+                f"No tests found: {problem_id}"
+            )
+
+        test_types = {
+            test_case.get("testtype", "stdin")
+            for test_case in all_tests
+        }
+
+        if len(test_types) != 1:
+            raise ValueError(
+                f"Mixed test types for {problem_id}: "
+                f"{sorted(test_types)}"
+            )
+
+        test_type = next(iter(test_types))
+
+        if test_type not in cls.SUPPORTED_TEST_TYPES:
+            raise ValueError(
+                f"Unknown test type for "
+                f"{problem_id}: {test_type}"
+            )
+
+        return test_type
 
     @staticmethod
     def _decode_json_field(
@@ -163,14 +218,15 @@ class DatasetLoader:
                 return json.loads(unpickled)
             except json.JSONDecodeError as error:
                 raise ValueError(
-                    f"Failed to parse decoded private tests: "
-                    f"{problem_id}"
+                    f"Failed to parse decoded "
+                    f"private tests: {problem_id}"
                 ) from error
 
         if not isinstance(unpickled, list):
             raise TypeError(
                 f"Unexpected private test type for "
-                f"{problem_id}: {type(unpickled).__name__}"
+                f"{problem_id}: "
+                f"{type(unpickled).__name__}"
             )
 
         return unpickled
@@ -217,6 +273,16 @@ class DatasetLoader:
                 raise ValueError(
                     f"Unknown difficulty: "
                     f"{example.difficulty} "
+                    f"({example.problem_id})"
+                )
+
+            if example.test_type not in {
+                "stdin",
+                "functional",
+            }:
+                raise ValueError(
+                    f"Unknown test type: "
+                    f"{example.test_type} "
                     f"({example.problem_id})"
                 )
 

@@ -22,6 +22,8 @@ class ProblemExample:
     public_tests: list[dict[str, Any]]
     private_tests: list[dict[str, Any]]
     metadata: dict[str, Any]
+    
+    test_type: str
     source: str = "livecodebench_v6"
 
 

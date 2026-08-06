@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-08-06T08:58:18.196327+00:00",
+  "created_at": "2026-08-06T09:34:57.821921+00:00",
   "experiment_name": "phase1_direct",
   "seed": 42,
   "dataset_name": "livecodebench_v6",
@@ -14,10 +14,12 @@
   "top_p": 1.0,
   "python_version": "3.11.15 (main, Jun 11 2026, 15:20:16) [GCC 14.3.0]",
   "platform": "Linux-6.8.0-136-generic-x86_64-with-glibc2.39",
-  "torch_version": "2.13.0+cu130",
+  "torch_version": "2.10.0+cu128",
   "transformers_version": "5.14.1",
-  "cuda_available": false,
-  "cuda_version": "13.0",
+  "cuda_available": true,
+  "cuda_version": "12.8",
   "gpu_count": 1,
-  "gpu_names": []
+  "gpu_names": [
+    "NVIDIA GeForce RTX 5090"
+  ]
 }

@@ -4,6 +4,8 @@ experiment:
 dataset:
   name: livecodebench_v6
   split: test
+  release_version: release_v6
+  test_type: stdin
   limit: 10
 model:
   name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
@@ -26,5 +28,5 @@ evaluation:
   include_public_tests: true
   include_private_tests: true
 output:
-  path: outputs/direct/results.jsonl
+  path: outputs/direct_stdin/results.jsonl
   resume: true

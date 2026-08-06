@@ -40,6 +40,7 @@ def make_example() -> ProblemExample:
             },
         ],
         metadata={},
+        test_type="stdin",
     )
 
 

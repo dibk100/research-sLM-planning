@@ -84,17 +84,29 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_extraction_failure_evaluation(
+def build_failure_evaluation(
+    *,
+    status: str,
     error: Exception,
 ) -> EvaluationResult:
+    """실행을 중단하지 않고 실패 결과를 저장하기 위한 객체를 만든다."""
     return EvaluationResult(
         passed=False,
-        status="EXTRACTION_ERROR",
+        status=status,
         passed_tests=0,
         total_tests=0,
         execution_time=0.0,
         test_results=[],
         error_message=str(error),
+    )
+
+
+def build_extraction_failure_evaluation(
+    error: Exception,
+) -> EvaluationResult:
+    return build_failure_evaluation(
+        status="EXTRACTION_ERROR",
+        error=error,
     )
 
 
@@ -162,12 +174,21 @@ def main() -> None:
     print(f"Run config : {run_config_path}")
     print(f"Metadata   : {run_metadata_path}")
     print(f"Resume     : {resume}")
+    print(f"Test type  : {dataset_config.get('test_type', 'stdin')}")
     print()
 
     loader = DatasetLoader(
         dataset_name=dataset_config["name"],
         split=dataset_config["split"],
         limit=dataset_limit,
+        test_type=dataset_config.get(
+            "test_type",
+            "stdin",
+        ),
+        release_version=dataset_config.get(
+            "release_version",
+            "release_v6",
+        ),
     )
 
     examples = loader.load()
@@ -269,38 +290,57 @@ def main() -> None:
                 example
             )
 
+            # 1. 코드 추출 단계
             try:
                 extracted_code = extractor.extract(
                     strategy_output.raw_output
                 )
 
-                evaluation = evaluator.evaluate(
-                    example=example,
-                    code=extracted_code,
-                )
-
             except CodeExtractionError as error:
                 extracted_code = ""
-                evaluation = (
-                    build_extraction_failure_evaluation(
-                        error
-                    )
+                evaluation = build_failure_evaluation(
+                    status="EXTRACTION_ERROR",
+                    error=error,
                 )
+
+            # 2. 코드 추출에 성공한 경우 평가 단계
+            else:
+                try:
+                    evaluation = evaluator.evaluate(
+                        example=example,
+                        code=extracted_code,
+                    )
+
+                except ValueError as error:
+                    error_message = str(error)
+
+                    if "Unsupported test type" in error_message:
+                        evaluation = build_failure_evaluation(
+                            status="UNSUPPORTED_TEST_TYPE",
+                            error=error,
+                        )
+                    else:
+                        evaluation = build_failure_evaluation(
+                            status="EVALUATION_ERROR",
+                            error=error,
+                        )
+
+                except Exception as error:
+                    evaluation = build_failure_evaluation(
+                        status="EVALUATION_ERROR",
+                        error=error,
+                    )
 
             record = build_experiment_record(
                 example=example,
                 strategy_output=strategy_output,
                 extracted_code=extracted_code,
                 evaluation=evaluation,
-                dataset_name=dataset_config[
-                    "name"
-                ],
-                model_name=model_config[
-                    "name_or_path"
-                ],
+                dataset_name=dataset_config["name"],
+                model_name=model_config["name_or_path"],
                 seed=seed,
             )
-
+        
             logger.append(record.to_dict())
 
             processed_count += 1
