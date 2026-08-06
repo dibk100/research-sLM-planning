@@ -1,20 +1,35 @@
-# Direct Code Generation 실험 설정
-# TODO: step2에서 값 확정
+experiment:
+  name: phase1_direct
+  seed: 42
+
+dataset:
+  name: livecodebench_v6
+  split: test
+  limit: 3                  # num_rows: 1055
 
 model:
-  name: null          # e.g. Qwen/Qwen2.5-Coder-3B-Instruct
+  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
   dtype: bfloat16
+  device_map: auto
+  trust_remote_code: true
+
+generation:
   max_new_tokens: 1024
   temperature: 0.0
   top_p: 1.0
 
-dataset:
-  name: null          # e.g. humaneval_plus
-  split: test
-  limit: null         # None이면 전체
+strategy:
+  name: direct
+  prompt_path: prompts/direct.txt
+  system_prompt: >
+    You are an expert competitive programming assistant.
+    Generate correct and efficient Python solutions.
 
-strategy: direct
-prompt_path: prompts/direct.txt
+evaluation:
+  timeout_seconds: 5.0
+  include_public_tests: true
+  include_private_tests: true
 
-output_dir: outputs/direct
-seed: 42
+output:
+  path: outputs/direct/results.jsonl
+  resume: true
