@@ -58,15 +58,13 @@ class DatasetLoader:
             )
 
         examples = self._load_livecodebench_v6()
-
-        if self.limit is not None:
-            examples = examples[: self.limit]
-
         self._validate_examples(examples)
 
         return examples
 
-    def _load_livecodebench_v6(self) -> list[ProblemExample]:
+    def _load_livecodebench_v6(
+        self,
+    ) -> list[ProblemExample]:
         dataset = load_dataset(
             "livecodebench/code_generation_lite",
             version_tag="release_v6",
@@ -74,23 +72,35 @@ class DatasetLoader:
             trust_remote_code=True,
         )
 
+        if self.limit is not None:
+            dataset = dataset.select(
+                range(min(self.limit, len(dataset)))
+            )
+
         examples: list[ProblemExample] = []
 
         for row in dataset:
+            problem_id = row["question_id"]
+
             public_tests = self._decode_json_field(
-                row["public_test_cases"]
+                row["public_test_cases"],
+                field_name="public_test_cases",
+                problem_id=problem_id,
             )
 
             private_tests = self._decode_private_tests(
-                row["private_test_cases"]
+                row["private_test_cases"],
+                problem_id=problem_id,
             )
 
             metadata = self._decode_json_field(
-                row["metadata"]
+                row["metadata"],
+                field_name="metadata",
+                problem_id=problem_id,
             )
 
             example = ProblemExample(
-                problem_id=row["question_id"],
+                problem_id=problem_id,
                 title=row["question_title"],
                 prompt=row["question_content"],
                 platform=row["platform"],
@@ -108,31 +118,62 @@ class DatasetLoader:
         return examples
 
     @staticmethod
-    def _decode_json_field(value: Any) -> Any:
-        if isinstance(value, str):
-            return json.loads(value)
-
-        return value
-
-    @staticmethod
-    def _decode_private_tests(value: Any) -> list[dict]:
+    def _decode_json_field(
+        value: Any,
+        field_name: str,
+        problem_id: str,
+    ) -> Any:
         if not isinstance(value, str):
             return value
 
         try:
             return json.loads(value)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                f"Failed to decode {field_name}: "
+                f"{problem_id}"
+            ) from error
 
+    @staticmethod
+    def _decode_private_tests(
+        value: Any,
+        problem_id: str,
+    ) -> list[dict[str, Any]]:
+        if not isinstance(value, str):
+            return value
+
+        try:
+            decoded_json = json.loads(value)
+            return decoded_json
         except json.JSONDecodeError:
-            decoded = base64.b64decode(
-                value.encode("utf-8")
-            )
+            pass
+
+        try:
+            decoded = base64.b64decode(value)
             decompressed = zlib.decompress(decoded)
             unpickled = pickle.loads(decompressed)
+        except Exception as error:
+            raise ValueError(
+                f"Failed to decode private tests: "
+                f"{problem_id}"
+            ) from error
 
-            if isinstance(unpickled, str):
+        if isinstance(unpickled, str):
+            try:
                 return json.loads(unpickled)
+            except json.JSONDecodeError as error:
+                raise ValueError(
+                    f"Failed to parse decoded private tests: "
+                    f"{problem_id}"
+                ) from error
 
-            return unpickled
+        if not isinstance(unpickled, list):
+            raise TypeError(
+                f"Unexpected private test type for "
+                f"{problem_id}: {type(unpickled).__name__}"
+            )
+
+        return unpickled
 
     @staticmethod
     def _validate_examples(
@@ -142,7 +183,9 @@ class DatasetLoader:
 
         for example in examples:
             if not example.problem_id:
-                raise ValueError("Empty problem_id detected.")
+                raise ValueError(
+                    "Empty problem_id detected."
+                )
 
             if example.problem_id in problem_ids:
                 raise ValueError(
@@ -150,18 +193,20 @@ class DatasetLoader:
                     f"{example.problem_id}"
                 )
 
+            if not example.title.strip():
+                raise ValueError(
+                    f"Empty title: {example.problem_id}"
+                )
+
             if not example.prompt.strip():
                 raise ValueError(
                     f"Empty prompt: {example.problem_id}"
                 )
 
-            if example.platform not in {
-                "leetcode",
-                "codeforces",
-                "atcoder",
-            }:
+            if not example.platform.strip():
                 raise ValueError(
-                    f"Unknown platform: {example.platform}"
+                    f"Missing platform: "
+                    f"{example.problem_id}"
                 )
 
             if example.difficulty not in {
@@ -171,7 +216,8 @@ class DatasetLoader:
             }:
                 raise ValueError(
                     f"Unknown difficulty: "
-                    f"{example.difficulty}"
+                    f"{example.difficulty} "
+                    f"({example.problem_id})"
                 )
 
             if not example.public_tests:
