@@ -3,9 +3,9 @@ Direct / Self-Plan / Teacher-Plan 정량 비교.
 
 Usage:
 
-python -m archive.sample50_compare_three_strategies
+python -m archive.compare_three_strategies
 
-python -m archive.sample50_compare_three_strategies \
+python -m archive.compare_three_strategies \
   --direct-path /mnt/hdd/project_sLM_planning/output/direct_50_stdin/results.jsonl \
   --self-plan-path /mnt/hdd/project_sLM_planning/output/self_plan_50_stdin/results.jsonl \
   --teacher-plan-path /mnt/hdd/project_sLM_planning/output/teacher_plan_50_stdin/results.jsonl \
