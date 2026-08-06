@@ -1,14 +1,17 @@
-# TODO: step2에서 확정
-# HumanEval 계열에서는 기존 함수 signature를 유지해야 하므로 다음 문구가 중요하다.
-# "Follow the required function signature."
-
-Solve the following programming problem in Python.
+Solve the following competitive programming problem in Python.
 
 Requirements:
-- Produce a correct and efficient solution.
-- Follow the required function signature.
 - Return only the final Python code.
-- Do not include explanations or Markdown formatting.
+- Do not include explanations.
+- Do not include Markdown code fences.
+- Read input from standard input.
+- Write output to standard output.
+- Use an efficient algorithm.
+
+Problem Title:
+{title}
 
 Problem:
 {problem}
+
+{starter_code_section}

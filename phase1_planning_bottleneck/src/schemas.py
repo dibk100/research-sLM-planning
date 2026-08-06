@@ -34,6 +34,18 @@ class GenerationOutput:
 
 
 @dataclass
+class StrategyOutput:
+    problem_id: str
+    strategy: str
+    prompt: str
+    raw_output: str
+
+    prompt_tokens: int
+    completion_tokens: int
+    generation_time: float
+
+
+@dataclass
 class EvaluationResult:
     passed: bool
     status: str
