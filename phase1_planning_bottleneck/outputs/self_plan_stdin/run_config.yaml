@@ -1,39 +1,34 @@
 experiment:
   name: phase1_self_plan
   seed: 42
-
 dataset:
   name: livecodebench_v6
   split: test
   release_version: release_v6
   test_type: stdin
   limit: 10
-
 model:
   name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
   dtype: bfloat16
   device_map: auto
   trust_remote_code: true
-
 generation:
-  plan_max_new_tokens: 384        # 384
+  plan_max_new_tokens: 384
   code_max_new_tokens: 1024
   temperature: 0.0
   top_p: 1.0
-
 strategy:
   name: self_plan
   plan_prompt_path: prompts/self_plan_plan.txt
   code_prompt_path: prompts/self_plan_code.txt
-  system_prompt: >
-    You are an expert competitive programming assistant.
-    Analyze problems carefully and generate correct and efficient Python solutions.
+  system_prompt: 'You are an expert competitive programming assistant. Analyze problems
+    carefully and generate correct and efficient Python solutions.
 
+    '
 evaluation:
   timeout_seconds: 5.0
   include_public_tests: true
   include_private_tests: true
-
 output:
   path: outputs/self_plan_stdin/results.jsonl
   resume: true

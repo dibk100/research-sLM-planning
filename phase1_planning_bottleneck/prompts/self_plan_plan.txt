@@ -1,13 +1,16 @@
 Analyze the following competitive programming problem and produce a concise implementation plan.
 
 Requirements:
-- Identify the core algorithm.
-- Explain the key invariant or reasoning.
-- Specify the required data structures.
-- Describe the input and output handling.
-- Analyze the time and space complexity.
-- Do not write Python code.
-- Return only the implementation plan.
+- Use at most 6 bullet points.
+- Do not repeat or summarize the problem statement.
+- State the core algorithm and exact decision condition.
+- State the key invariant or correctness reasoning.
+- Mention only the necessary data structures.
+- Mention important edge cases.
+- State time and space complexity in one bullet.
+- Do not write code or pseudocode.
+- Do not include headings, introductions, or conclusions.
+- Return only the bullet-point plan.
 
 Problem Title:
 {title}
