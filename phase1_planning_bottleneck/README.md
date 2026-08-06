@@ -8,6 +8,106 @@
 
 > **작은 코드 모델은 올바른 알고리즘 계획을 스스로 생성하지 못하는 것이 병목인가?**
 
+### 폴더 아키텍처
+```
+phase1_planning_bottleneck/
+├── README.md
+├── requirements.txt
+├── configs/
+│   ├── base.yaml
+│   ├── model/
+│   │   ├── qwen2.5_coder_3b.yaml
+│   │   └── teacher_model.yaml
+│   ├── dataset/
+│   │   ├── humaneval_plus.yaml
+│   │   ├── mbpp_plus.yaml
+│   │   └── livecodebench.yaml
+│   └── experiment/
+│       ├── direct.yaml
+│       ├── self_plan.yaml
+│       └── teacher_plan.yaml
+│
+├── data/
+│   ├── raw/
+│   ├── processed/
+│   ├── teacher_plans/
+│   └── splits/
+│
+├── prompts/
+│   ├── direct.txt
+│   ├── self_plan.txt
+│   ├── self_plan_code.txt
+│   ├── teacher_plan.txt
+│   └── teacher_plan_generation.txt
+│
+├── src/
+│   ├── __init__.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── model_loader.py
+│   │   └── generator.py
+│   │
+│   ├── datasets/
+│   │   ├── __init__.py
+│   │   ├── base_dataset.py
+│   │   ├── humaneval_plus.py
+│   │   ├── mbpp_plus.py
+│   │   └── livecodebench.py
+│   │
+│   ├── strategies/
+│   │   ├── __init__.py
+│   │   ├── base_strategy.py
+│   │   ├── direct.py
+│   │   ├── self_plan.py
+│   │   └── teacher_plan.py
+│   │
+│   ├── execution/
+│   │   ├── __init__.py
+│   │   ├── code_extractor.py
+│   │   ├── sandbox.py
+│   │   ├── evaluator.py
+│   │   └── result_parser.py
+│   │
+│   ├── analysis/
+│   │   ├── __init__.py
+│   │   ├── aggregate_results.py
+│   │   ├── compare_conditions.py
+│   │   ├── difficulty_analysis.py
+│   │   ├── plan_analysis.py
+│   │   └── failure_analysis.py
+│   │
+│   └── utils/
+│       ├── config.py
+│       ├── io.py
+│       ├── logging.py
+│       ├── seed.py
+│       └── schema.py
+│
+├── scripts/
+│   ├── prepare_dataset.py
+│   ├── generate_teacher_plans.py
+│   ├── run_direct.py
+│   ├── run_self_plan.py
+│   ├── run_teacher_plan.py
+│   ├── run_all.py
+│   ├── evaluate.py
+│   └── analyze.py
+│
+├── outputs/
+│   ├── generations/
+│   ├── executions/
+│   ├── metrics/
+│   ├── figures/
+│   └── logs/
+│
+└── tests/
+    ├── test_code_extractor.py
+    ├── test_prompt_builder.py
+    ├── test_result_schema.py
+    └── test_evaluator.py
+
+```
+
 
 ### 실험 구성 :
 
