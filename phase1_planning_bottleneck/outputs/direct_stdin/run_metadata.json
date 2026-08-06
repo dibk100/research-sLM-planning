@@ -1,0 +1,25 @@
+{
+  "created_at": "2026-08-06T10:34:28.656196+00:00",
+  "experiment_name": "phase1_direct",
+  "seed": 42,
+  "dataset_name": "livecodebench_v6",
+  "dataset_split": "test",
+  "dataset_limit": 10,
+  "dataset_release_version": "release_v6",
+  "model_name_or_path": "Qwen/Qwen2.5-Coder-3B-Instruct",
+  "dtype": "bfloat16",
+  "device_map": "auto",
+  "max_new_tokens": 1024,
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "python_version": "3.11.15 (main, Jun 11 2026, 15:20:16) [GCC 14.3.0]",
+  "platform": "Linux-6.8.0-136-generic-x86_64-with-glibc2.39",
+  "torch_version": "2.10.0+cu128",
+  "transformers_version": "5.14.1",
+  "cuda_available": true,
+  "cuda_version": "12.8",
+  "gpu_count": 1,
+  "gpu_names": [
+    "NVIDIA GeForce RTX 5090"
+  ]
+}

@@ -1,0 +1,21 @@
+﻿problem_id,title,platform,difficulty,strategy,model_name,passed,status,passed_tests,total_tests,test_pass_ratio,prompt_tokens,completion_tokens,total_tokens,generation_time,tokens_per_second,execution_time,error_message
+1873_A,A. Short Sort,codeforces,easy,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,WRONG_ANSWER,3,5,0.6,496,138,634,1.4596370089566335,94.54405386627192,0.025685355998575687,"Test 0: expected='YES\nYES\nYES\nNO\nNO\nYES\n', actual='YES\nNO\nNO\nNO\nNO\nNO\n'"
+1873_B,B. Good Kid,codeforces,easy,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,WRONG_ANSWER,12,13,0.9230769230769231,391,255,646,2.3165458029834554,110.07768535013992,0.2796610619989224,"Test 0: expected='16\n2\n432\n430467210\n', actual='16\n2\n432\n0\n'"
+1873_D,D. 1D Eraser,codeforces,easy,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,WRONG_ANSWER,0,13,0.0,607,626,1233,5.689609321998432,110.02512906811012,6.448864852951374,"Test 0: expected='2\n1\n2\n1\n4\n3\n4\n0\n', actual='1\n1\n1\n1\n1\n1\n1\n0\n'"
+1883_B,B. Chemistry,codeforces,medium,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,RUNTIME_ERROR,0,4,0.0,791,223,1014,2.044509861036204,109.07259693380914,0.024505090026650578,"Test 0: Traceback (most recent call last):
+  File ""/tmp/phase1_eval_i6_9_spc/solution.py"", line 21, in <module>
+    n = int(data[2*i+1])
+        ^^^^^^^^^^^^^^^^
+ValueError: invalid literal for int() with base 10: 'a'"
+1883_C,C. Raspberries,codeforces,medium,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,RUNTIME_ERROR,0,13,0.0,793,259,1052,2.372700275038369,109.15833016279804,0.07619478402193636,"Test 0: Traceback (most recent call last):
+  File ""/tmp/phase1_eval_ceueuvjy/solution.py"", line 33, in <module>
+    solve()
+  File ""/tmp/phase1_eval_ceueuvjy/solution.py"", line 6, in solve
+    t = int(data[0])
+            ^^^^
+UnboundLocalError: cannot access local variable 'data' where it is not associated with a value"
+1899_A,A. Game with Integers,codeforces,easy,direct,Qwen/Qwen2.5-Coder-3B-Instruct,True,PASS,13,13,1.0,335,76,411,0.6962083899998106,109.16271778916752,0.0644385350169614,
+1899_B,B. 250 Thousand Tons of TNT,codeforces,hard,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,WRONG_ANSWER,2,13,0.15384615384615385,916,344,1260,3.1484135090140626,109.26137847366971,0.2159916390082799,"Test 0: expected='1\n9\n0\n189114\n112141\n', actual='1\n13\n0\n370110\n187903\n'"
+1899_C,C. Yarik and Array,codeforces,hard,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,WRONG_ANSWER,8,13,0.6153846153846154,552,211,763,1.9335569339455105,109.12531009337539,0.13732406101189554,"Test 0: expected='15\n17\n8\n4\n-1000\n101\n10\n', actual='15\n17\n7\n4\n-1000\n101\n10\n'"
+1899_D,D. Yarik and Musical Notes,codeforces,hard,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,WRONG_ANSWER,12,13,0.9230769230769231,806,179,985,1.6459984850371256,108.7485812576326,0.16830130299786106,"Test 0: expected='0\n2\n1\n3\n19\n', actual='0\n1\n1\n3\n15\n'"
+abc301_a,Overall Winner,atcoder,easy,direct,Qwen/Qwen2.5-Coder-3B-Instruct,False,WRONG_ANSWER,13,15,0.8666666666666667,404,92,496,0.8437088339705952,109.04235714474737,0.07472182903438807,"Test 1: expected='T\n', actual='A\n'"

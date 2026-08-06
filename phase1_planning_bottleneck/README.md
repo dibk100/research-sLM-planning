@@ -8,6 +8,14 @@
 
 > **작은 코드 모델은 올바른 알고리즘 계획을 스스로 생성하지 못하는 것이 병목인가?**
 
+### Note.
+
+현재 진행 상황 기록하기.
+
+- (Direct baseline Done) Phase1의 Direct baseline용 전체 실험 파이프라인과 로그,분석 인프라를 완성했고, stdin subset 10문제 smoke test까지 검증함.
+
+
+
 ### 폴더 아키텍처
 ```
 phase1_planning_bottleneck/
@@ -117,10 +125,17 @@ phase1_planning_bottleneck/
 문제를 입력받아 계획 없이 바로 코드를 생성한다.
 
 2. Self-Planning :
-모델이 스스로 해결 계획(Planning)을 생성한 뒤 해당 계획을 기반으로 코드를 생성한다.
+모델이 스스로 해결 계획(Planning)을 생성한 뒤 해당 계획을 기반으로 코드를 생성한다.(두 번의 독립 호출)   
+``` Problem → Student Plan → Student Code ```
+
+- 호출 1: 계획 생성(Problem → Plan)
+- 호출 2: 계획 기반 코드 생성(Problem + Generated Plan → Code)
 
 3. Teacher-Planning :
 강한 모델(Teacher,LLM)이 생성한 계획을 입력으로 제공하고, 작은 모델은 해당 계획만을 이용하여 코드를 구현한다.
+
+- Teacher plan은 실험 전에 미리 생성하고 고정
+- 실험 시에는 Teacher 모델을 다시 호출하지 않고 저장된 계획을 읽도록 함.
 
 
 ### 분석 목표
