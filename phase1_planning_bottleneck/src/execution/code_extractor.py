@@ -9,37 +9,115 @@
 
 code extraction 오류를 나중에 확인할 수 있도록, 모델 출력이 비어있거나, 코드 블록이 없거나, 코드 블록이 비어있을 경우 ValueError를 발생시킴
 """
-
-
+from __future__ import annotations
 
 import re
 
+
+class CodeExtractionError(ValueError):
+    """모델 출력에서 유효한 코드를 추출하지 못한 경우."""
+
+
 class CodeExtractor:
-    PYTHON_BLOCK_PATTERN = re.compile(
-        r"```python\s*(.*?)```",
-        re.DOTALL | re.IGNORECASE,
+    """LLM raw output에서 Python 코드만 추출한다."""
+
+    PYTHON_CODE_BLOCK_PATTERN = re.compile(
+        r"```(?:python|py)\s*\n?(.*?)```",
+        flags=re.DOTALL | re.IGNORECASE,
     )
 
-    GENERIC_BLOCK_PATTERN = re.compile(
-        r"```\s*(.*?)```",
-        re.DOTALL,
+    GENERIC_CODE_BLOCK_PATTERN = re.compile(
+        r"```\s*\n?(.*?)```",
+        flags=re.DOTALL,
     )
 
-    def extract(self, text: str) -> str:
-        if not text or not text.strip():
-            raise ValueError("Model output is empty.")
+    def extract(self, raw_output: str) -> str:
+        """모델 출력에서 가장 적절한 Python 코드 블록을 반환한다."""
+        if not isinstance(raw_output, str):
+            raise TypeError(
+                "raw_output must be a string, "
+                f"got {type(raw_output).__name__}."
+            )
 
-        python_match = self.PYTHON_BLOCK_PATTERN.search(text)
-        if python_match:
-            return python_match.group(1).strip()
+        text = raw_output.strip()
 
-        generic_match = self.GENERIC_BLOCK_PATTERN.search(text)
-        if generic_match:
-            return generic_match.group(1).strip()
+        if not text:
+            raise CodeExtractionError(
+                "Model output is empty."
+            )
 
-        code = text.strip()
+        code = self._extract_python_code_block(text)
+
+        if code is None:
+            code = self._extract_generic_code_block(text)
+
+        if code is None:
+            code = self._extract_plain_text(text)
+
+        code = self._clean_code(code)
 
         if not code:
-            raise ValueError("Extracted code is empty.")
+            raise CodeExtractionError(
+                "Extracted code is empty."
+            )
 
         return code
+
+    def _extract_python_code_block(
+        self,
+        text: str,
+    ) -> str | None:
+        """python 또는 py로 표시된 코드 블록을 우선 추출한다."""
+        matches = self.PYTHON_CODE_BLOCK_PATTERN.findall(text)
+
+        if not matches:
+            return None
+
+        return self._select_best_block(matches)
+
+    def _extract_generic_code_block(
+        self,
+        text: str,
+    ) -> str | None:
+        """언어명이 없는 Markdown 코드 블록을 추출한다."""
+        matches = self.GENERIC_CODE_BLOCK_PATTERN.findall(text)
+
+        if not matches:
+            return None
+
+        return self._select_best_block(matches)
+
+    @staticmethod
+    def _select_best_block(
+        blocks: list[str],
+    ) -> str:
+        """여러 코드 블록 중 가장 긴 블록을 선택한다."""
+        return max(
+            blocks,
+            key=lambda block: len(block.strip()),
+        )
+
+    @staticmethod
+    def _extract_plain_text(
+        text: str,
+    ) -> str:
+        """코드 블록이 없으면 전체 출력을 코드 후보로 사용한다."""
+        return text
+
+    @staticmethod
+    def _clean_code(
+        code: str,
+    ) -> str:
+        """잔여 Markdown 및 불필요한 공백을 제거한다."""
+        cleaned = code.strip()
+
+        if cleaned.lower().startswith("python\n"):
+            cleaned = cleaned[len("python\n"):].lstrip()
+
+        if cleaned.lower().startswith("py\n"):
+            cleaned = cleaned[len("py\n"):].lstrip()
+
+        cleaned = cleaned.replace("\r\n", "\n")
+        cleaned = cleaned.replace("\r", "\n")
+
+        return cleaned.strip()
