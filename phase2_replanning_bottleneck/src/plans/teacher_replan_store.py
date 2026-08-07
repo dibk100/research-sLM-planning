@@ -1,23 +1,24 @@
-"""Teacher re-plan storage and retrieval.
+"""
+Teacher Re-plan JSONL store.
 
-Phase 1의 TeacherPlanStore를 계승하되, 저장 대상이
-"문제에 대한 최초 계획"이 아니라
-"실패한 initial code에 대한 revised plan"이라는 점만 다르다.
+Phase 2-3 Teacher-Replanning Regeneration에서 사용한다.
 
-JSONL 레코드 형식
------------------
+Teacher re-plan 파일을 메모리에 로드한 뒤 problem_id로 조회하고,
+현재 Phase 1 FailureCase와 teacher re-plan이 동일한 failure trajectory를
+기준으로 생성되었는지 검증한다.
+
+Expected JSONL schema:
+
 {
-  "problem_id": "abc379_e",
-  "teacher_replan": "- ...\\n- ...",
-  "teacher_model": "claude-opus-5",
-  "plan_version": "v1",
-  "verified": true,
-  "based_on": "direct_500_stdin"   # 어떤 initial trajectory를 보고 쓴 replan인지
+    "problem_id": "1873_A",
+    "teacher_replan": "- ...\\n- ...",
+    "teacher_model": "claude-opus-...",
+    "replan_version": "v1",
+    "verified": true,
+    "initial_status": "WRONG_ANSWER",
+    "initial_passed_tests": 3,
+    "initial_total_tests": 5
 }
-
-`based_on` 은 어떤 Phase 1 실행 결과의 실패를 보고 작성한 replan인지 기록한다.
-동일 문제라도 initial code가 달라지면 revised plan도 달라지므로,
-Phase 1 실행을 다시 돌린 경우 replan을 재작성해야 한다.
 """
 
 from __future__ import annotations
@@ -27,89 +28,117 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from src.schemas import FailureCase
+
 
 @dataclass(frozen=True)
-class TeacherReplanRecord:
-    """문제 하나에 대응하는 teacher re-plan."""
+class TeacherReplanEntry:
+    """Teacher re-plan 한 건."""
 
     problem_id: str
     teacher_replan: str
-    teacher_model: str | None = None
-    plan_version: str | None = None
-    verified: bool | None = None
-    based_on: str | None = None
 
-    @classmethod
-    def from_dict(
-        cls,
-        data: dict[str, Any],
-    ) -> "TeacherReplanRecord":
-        problem_id = str(
-            data.get("problem_id", "")
-        ).strip()
+    teacher_model: str
+    replan_version: str
+    verified: bool
 
-        teacher_replan = str(
-            data.get("teacher_replan", "")
-        ).strip()
-
-        if not problem_id:
-            raise ValueError(
-                "Teacher replan record has empty "
-                "problem_id."
-            )
-
-        if not teacher_replan:
-            raise ValueError(
-                f"Teacher replan is empty: {problem_id}"
-            )
-
-        verified_value = data.get("verified")
-
-        if (
-            verified_value is not None
-            and not isinstance(verified_value, bool)
-        ):
-            raise TypeError(
-                "verified must be bool or null: "
-                f"{problem_id}"
-            )
-
-        return cls(
-            problem_id=problem_id,
-            teacher_replan=teacher_replan,
-            teacher_model=data.get("teacher_model"),
-            plan_version=data.get("plan_version"),
-            verified=verified_value,
-            based_on=data.get("based_on"),
-        )
+    initial_status: str
+    initial_passed_tests: int
+    initial_total_tests: int
 
 
 class TeacherReplanStore:
-    """JSONL teacher re-plan 파일을 problem_id로 조회한다."""
+    """
+    Teacher re-plan JSONL을 problem_id 기반으로 조회한다.
+
+    기본적으로 verified=True인 re-plan만 허용한다.
+    """
 
     def __init__(
         self,
-        plan_path: str | Path,
+        replan_path: str | Path,
         *,
-        require_verified: bool = False,
+        require_verified: bool = True,
     ) -> None:
-        self.plan_path = Path(plan_path)
-        self.require_verified = require_verified
+        self.replan_path = Path(
+            replan_path
+        )
 
-        if not self.plan_path.exists():
-            raise FileNotFoundError(
-                "Teacher replan file not found: "
-                f"{self.plan_path}"
+        self.require_verified = (
+            require_verified
+        )
+
+        self._validate_path()
+
+        self._entries = (
+            self._load_entries()
+        )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def get(
+        self,
+        problem_id: str,
+    ) -> TeacherReplanEntry:
+        """
+        problem_id에 해당하는 teacher re-plan을 반환한다.
+        """
+
+        if problem_id not in self._entries:
+            raise KeyError(
+                "Teacher re-plan not found for "
+                f"problem_id={problem_id}"
             )
 
-        self._records = self._load_records()
+        return self._entries[
+            problem_id
+        ]
 
-    def _load_records(
+    def get_for_failure(
         self,
-    ) -> dict[str, TeacherReplanRecord]:
-        records: dict[str, TeacherReplanRecord] = {}
+        case: FailureCase,
+    ) -> TeacherReplanEntry:
+        """
+        FailureCase와 일치하는 teacher re-plan을 반환한다.
 
-        with self.plan_path.open(
+        problem_id뿐 아니라 initial execution state도 검증한다.
+        """
+
+        entry = self.get(
+            case.example.problem_id
+        )
+
+        self._validate_failure_match(
+            case=case,
+            entry=entry,
+        )
+
+        return entry
+
+    def has(
+        self,
+        problem_id: str,
+    ) -> bool:
+        return problem_id in self._entries
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    # ------------------------------------------------------------------
+    # Loading
+    # ------------------------------------------------------------------
+
+    def _load_entries(
+        self,
+    ) -> dict[str, TeacherReplanEntry]:
+        entries: dict[
+            str,
+            TeacherReplanEntry,
+        ] = {}
+
+        with self.replan_path.open(
             "r",
             encoding="utf-8",
         ) as file:
@@ -121,66 +150,266 @@ class TeacherReplanStore:
                     continue
 
                 try:
-                    raw_record = json.loads(line)
+                    record = json.loads(
+                        line
+                    )
+
                 except json.JSONDecodeError as error:
                     raise ValueError(
-                        "Invalid teacher replan JSON at "
-                        f"line {line_number}: "
-                        f"{self.plan_path}"
+                        "Invalid JSON at line "
+                        f"{line_number}: "
+                        f"{self.replan_path}"
                     ) from error
 
-                if not isinstance(raw_record, dict):
-                    raise TypeError(
-                        "Teacher replan record must be "
-                        f"an object at line {line_number}."
-                    )
-
-                record = TeacherReplanRecord.from_dict(
-                    raw_record
+                entry = self._build_entry(
+                    record=record,
+                    line_number=line_number,
                 )
 
-                if record.problem_id in records:
-                    raise ValueError(
-                        "Duplicated teacher replan: "
-                        f"{record.problem_id}"
-                    )
-
                 if (
-                    self.require_verified
-                    and record.verified is not True
+                    entry.problem_id
+                    in entries
                 ):
                     raise ValueError(
-                        "Unverified teacher replan: "
-                        f"{record.problem_id}"
+                        "Duplicate teacher re-plan "
+                        f"for problem_id="
+                        f"{entry.problem_id}"
                     )
 
-                records[record.problem_id] = record
+                entries[
+                    entry.problem_id
+                ] = entry
 
-        if not records:
+        if not entries:
             raise ValueError(
-                f"No teacher replans loaded: "
-                f"{self.plan_path}"
+                "Teacher re-plan file contains "
+                f"no valid entries: "
+                f"{self.replan_path}"
             )
 
-        return records
+        return entries
 
-    def get(
+    def _build_entry(
         self,
-        problem_id: str,
-    ) -> TeacherReplanRecord:
-        try:
-            return self._records[problem_id]
-        except KeyError as error:
-            raise KeyError(
-                "Teacher replan not found for "
-                f"problem_id={problem_id}"
-            ) from error
+        *,
+        record: dict[str, Any],
+        line_number: int,
+    ) -> TeacherReplanEntry:
+        """
+        JSON record를 TeacherReplanEntry로 변환한다.
+        """
 
-    def has(
+        required_fields = (
+            "problem_id",
+            "teacher_replan",
+            "teacher_model",
+            "replan_version",
+            "verified",
+            "initial_status",
+            "initial_passed_tests",
+            "initial_total_tests",
+        )
+
+        missing = [
+            field
+            for field in required_fields
+            if field not in record
+        ]
+
+        if missing:
+            raise ValueError(
+                "Missing teacher re-plan fields "
+                f"at line {line_number}: "
+                f"{missing}"
+            )
+
+        problem_id = str(
+            record["problem_id"]
+        )
+
+        teacher_replan = str(
+            record["teacher_replan"]
+        ).strip()
+
+        if not teacher_replan:
+            raise ValueError(
+                "teacher_replan is empty "
+                f"at line {line_number}"
+            )
+
+        verified = bool(
+            record["verified"]
+        )
+
+        if (
+            self.require_verified
+            and not verified
+        ):
+            raise ValueError(
+                "Unverified teacher re-plan "
+                f"for problem_id={problem_id}"
+            )
+
+        self._validate_plan_format(
+            teacher_replan=teacher_replan,
+            problem_id=problem_id,
+        )
+
+        return TeacherReplanEntry(
+            problem_id=problem_id,
+
+            teacher_replan=(
+                teacher_replan
+            ),
+
+            teacher_model=str(
+                record["teacher_model"]
+            ),
+
+            replan_version=str(
+                record["replan_version"]
+            ),
+
+            verified=verified,
+
+            initial_status=str(
+                record["initial_status"]
+            ),
+
+            initial_passed_tests=int(
+                record[
+                    "initial_passed_tests"
+                ]
+            ),
+
+            initial_total_tests=int(
+                record[
+                    "initial_total_tests"
+                ]
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    def _validate_path(
         self,
-        problem_id: str,
-    ) -> bool:
-        return problem_id in self._records
+    ) -> None:
+        if not self.replan_path.exists():
+            raise FileNotFoundError(
+                "Teacher re-plan file "
+                f"not found: "
+                f"{self.replan_path}"
+            )
 
-    def problem_ids(self) -> set[str]:
-        return set(self._records)
+        if not self.replan_path.is_file():
+            raise ValueError(
+                "Teacher re-plan path "
+                f"is not a file: "
+                f"{self.replan_path}"
+            )
+
+    @staticmethod
+    def _validate_plan_format(
+        *,
+        teacher_replan: str,
+        problem_id: str,
+    ) -> None:
+        """
+        Teacher/Self plan format 통제를 위한 최소 검증.
+
+        - 모든 non-empty line은 "- "로 시작
+        - 최대 6 bullet
+        """
+
+        lines = [
+            line.strip()
+            for line
+            in teacher_replan.splitlines()
+            if line.strip()
+        ]
+
+        if not lines:
+            raise ValueError(
+                "Teacher re-plan has no "
+                f"bullet lines: {problem_id}"
+            )
+
+        if len(lines) > 6:
+            raise ValueError(
+                "Teacher re-plan exceeds "
+                f"6 bullets: {problem_id}, "
+                f"count={len(lines)}"
+            )
+
+        invalid = [
+            line
+            for line in lines
+            if not line.startswith("- ")
+        ]
+
+        if invalid:
+            raise ValueError(
+                "Teacher re-plan contains "
+                "non-bullet lines for "
+                f"problem_id={problem_id}: "
+                f"{invalid[:3]}"
+            )
+
+    @staticmethod
+    def _validate_failure_match(
+        *,
+        case: FailureCase,
+        entry: TeacherReplanEntry,
+    ) -> None:
+        """
+        Teacher re-plan 생성 당시 failure state와
+        현재 FailureCase가 같은지 확인한다.
+        """
+
+        mismatches: list[str] = []
+
+        if (
+            entry.initial_status
+            != case.initial_status
+        ):
+            mismatches.append(
+                "initial_status: "
+                f"teacher={entry.initial_status}, "
+                f"current={case.initial_status}"
+            )
+
+        if (
+            entry.initial_passed_tests
+            != case.initial_passed_tests
+        ):
+            mismatches.append(
+                "initial_passed_tests: "
+                f"teacher="
+                f"{entry.initial_passed_tests}, "
+                f"current="
+                f"{case.initial_passed_tests}"
+            )
+
+        if (
+            entry.initial_total_tests
+            != case.initial_total_tests
+        ):
+            mismatches.append(
+                "initial_total_tests: "
+                f"teacher="
+                f"{entry.initial_total_tests}, "
+                f"current="
+                f"{case.initial_total_tests}"
+            )
+
+        if mismatches:
+            raise ValueError(
+                "Teacher re-plan failure state "
+                "does not match current "
+                f"FailureCase for "
+                f"problem_id="
+                f"{case.example.problem_id}: "
+                + "; ".join(mismatches)
+            )

@@ -65,6 +65,13 @@ from src.strategies.self_replan import (
     SelfReplanStrategy,
 )
 
+from src.plans.teacher_replan_store import (
+    TeacherReplanStore,
+)
+
+from src.strategies.teacher_replan import (
+    TeacherReplanStrategy,
+)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -203,7 +210,6 @@ def append_jsonl(
 # ---------------------------------------------------------------------------
 # Strategy
 # ---------------------------------------------------------------------------
-
 def build_strategy(
     *,
     config: dict[str, Any],
@@ -313,10 +319,66 @@ def build_strategy(
             ),
         )
 
+    # ---------------------------------------------------------------
+    # Phase 2-3. Teacher-Replanning Regeneration
+    # ---------------------------------------------------------------
+
+    if strategy_name == "teacher_replan":
+        replan_store = TeacherReplanStore(
+            strategy_config[
+                "replan_path"
+            ],
+
+            require_verified=bool(
+                strategy_config.get(
+                    "require_verified",
+                    True,
+                )
+            ),
+        )
+
+        return TeacherReplanStrategy(
+            generator=generator,
+
+            replan_store=replan_store,
+
+            code_prompt_path=(
+                strategy_config[
+                    "code_prompt_path"
+                ]
+            ),
+
+            system_prompt=(
+                strategy_config.get(
+                    "system_prompt"
+                )
+            ),
+
+            code_max_new_tokens=int(
+                generation_config.get(
+                    "code_max_new_tokens",
+                    1024,
+                )
+            ),
+
+            temperature=float(
+                generation_config.get(
+                    "temperature",
+                    0.0,
+                )
+            ),
+
+            top_p=float(
+                generation_config.get(
+                    "top_p",
+                    1.0,
+                )
+            ),
+        )
+
     raise ValueError(
         f"Unsupported strategy: {strategy_name}"
     )
-
 
 # ---------------------------------------------------------------------------
 # RefinementRecord
