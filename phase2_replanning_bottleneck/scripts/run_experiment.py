@@ -61,6 +61,10 @@ from src.strategies.feedback_regeneration import (
     FeedbackRegenerationStrategy,
 )
 
+from src.strategies.self_replan import (
+    SelfReplanStrategy,
+)
+
 
 # ---------------------------------------------------------------------------
 # Config
@@ -200,7 +204,6 @@ def append_jsonl(
 # Strategy
 # ---------------------------------------------------------------------------
 
-
 def build_strategy(
     *,
     config: dict[str, Any],
@@ -215,25 +218,93 @@ def build_strategy(
         {},
     )
 
+    # ---------------------------------------------------------------
+    # Phase 2-1. Feedback-based Regeneration
+    # ---------------------------------------------------------------
+
     if strategy_name == "feedback_regeneration":
         return FeedbackRegenerationStrategy(
             generator=generator,
-            prompt_path=strategy_config["prompt_path"],
-            system_prompt=strategy_config.get(
-                "system_prompt"
+
+            prompt_path=(
+                strategy_config["prompt_path"]
             ),
+
+            system_prompt=(
+                strategy_config.get(
+                    "system_prompt"
+                )
+            ),
+
             max_new_tokens=int(
                 generation_config.get(
                     "max_new_tokens",
                     1024,
                 )
             ),
+
             temperature=float(
                 generation_config.get(
                     "temperature",
                     0.0,
                 )
             ),
+
+            top_p=float(
+                generation_config.get(
+                    "top_p",
+                    1.0,
+                )
+            ),
+        )
+
+    # ---------------------------------------------------------------
+    # Phase 2-2. Self-Replanning Regeneration
+    # ---------------------------------------------------------------
+
+    if strategy_name == "self_replan":
+        return SelfReplanStrategy(
+            generator=generator,
+
+            plan_prompt_path=(
+                strategy_config[
+                    "plan_prompt_path"
+                ]
+            ),
+
+            code_prompt_path=(
+                strategy_config[
+                    "code_prompt_path"
+                ]
+            ),
+
+            system_prompt=(
+                strategy_config.get(
+                    "system_prompt"
+                )
+            ),
+
+            plan_max_new_tokens=int(
+                generation_config.get(
+                    "plan_max_new_tokens",
+                    512,
+                )
+            ),
+
+            code_max_new_tokens=int(
+                generation_config.get(
+                    "code_max_new_tokens",
+                    1024,
+                )
+            ),
+
+            temperature=float(
+                generation_config.get(
+                    "temperature",
+                    0.0,
+                )
+            ),
+
             top_p=float(
                 generation_config.get(
                     "top_p",

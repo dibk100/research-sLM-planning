@@ -1,40 +1,41 @@
 experiment:
-  name: phase2_self_replan
+  name: phase2_self_replan_500
   seed: 42
-
-phase1_source:
-  results_path: /mnt/hdd/project_sLM_planning/output/direct_500_stdin/results.jsonl
-  dataset_name: livecodebench_v6
-  limit: null
-  difficulties: null
-  max_feedback_chars: 2000
 
 model:
   name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
   dtype: bfloat16
   device_map: auto
-  trust_remote_code: true
 
-generation:
-  plan_max_new_tokens: 384     # Phase 1 self_plan과 동일한 예산
-  code_max_new_tokens: 1024
-  temperature: 0.0
-  top_p: 1.0
+input:
+  phase1_results_path: /mnt/hdd/project_sLM_planning/output/direct_500_stdin/results.jsonl
+
+  # 우선 pilot
+  limit: 50
+
+  difficulties: null
+  include_statuses: null
+
+  max_feedback_chars: 2000
 
 strategy:
   name: self_replan
+
   plan_prompt_path: prompts/self_replan_plan.txt
   code_prompt_path: prompts/self_replan_code.txt
-  system_prompt: >
-    You are an expert competitive programming assistant.
-    Diagnose why the previous solution failed, design a corrected
-    algorithmic plan, and implement it in Python.
+
+  system_prompt: null
+
+generation:
+  plan_max_new_tokens: 512
+  code_max_new_tokens: 1024
+
+  temperature: 0.0
+  top_p: 1.0
 
 evaluation:
   timeout_seconds: 5.0
-  include_public_tests: true
-  include_private_tests: true
 
 output:
-  path: /mnt/hdd/project_sLM_planning/output/phase2/self_replan_500/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/output/phase2_self_replan_500/results.jsonl
   resume: true
