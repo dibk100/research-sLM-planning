@@ -1,9 +1,0 @@
-﻿plan_difference_category,easy,hard,medium,All
-Algorithm Selection,1,0,1,2
-Complexity / Efficiency,0,1,0,1
-Decision Condition,3,1,1,5
-Implementation Detail Specification,0,0,2,2
-Numerical Precision,1,0,0,1
-Problem Misunderstanding,2,1,1,4
-Recurrence / State Definition,0,1,0,1
-All,7,4,5,16
