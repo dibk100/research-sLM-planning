@@ -3,7 +3,7 @@
 set -euo pipefail
 
 echo "============================================================"
-echo "Phase1 Planning Bottleneck (50 problems)"
+echo "Phase1 Planning Bottleneck (500 problems)"
 echo "============================================================"
 
 echo

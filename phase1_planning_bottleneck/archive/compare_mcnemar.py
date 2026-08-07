@@ -11,7 +11,7 @@ from statsmodels.stats.contingency_tables import mcnemar
 
 
 PROBLEM_COMPARISON_PATH = Path(
-    "./archive/comparison_50/problem_comparison.csv"
+    "./archive/comparison_500/problem_comparison.csv"
 )
 
 if not PROBLEM_COMPARISON_PATH.exists():

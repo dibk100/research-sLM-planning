@@ -286,15 +286,12 @@ class DatasetLoader:
                     f"({example.problem_id})"
                 )
 
-            if not example.public_tests:
+            if (
+                not example.public_tests
+                and not example.private_tests
+            ):
                 raise ValueError(
-                    f"Missing public tests: "
-                    f"{example.problem_id}"
-                )
-
-            if not example.private_tests:
-                raise ValueError(
-                    f"Missing private tests: "
+                    f"Missing all tests: "
                     f"{example.problem_id}"
                 )
 

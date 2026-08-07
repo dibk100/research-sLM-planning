@@ -6,10 +6,10 @@ Usage:
 python -m archive.compare_three_strategies
 
 python -m archive.compare_three_strategies \
-  --direct-path /mnt/hdd/project_sLM_planning/output/direct_50_stdin/results.jsonl \
-  --self-plan-path /mnt/hdd/project_sLM_planning/output/self_plan_50_stdin/results.jsonl \
-  --teacher-plan-path /mnt/hdd/project_sLM_planning/output/teacher_plan_50_stdin/results.jsonl \
-  --output-dir ./archive/comparison_50
+  --direct-path /mnt/hdd/project_sLM_planning/output/direct_500_stdin/results.jsonl \
+  --self-plan-path /mnt/hdd/project_sLM_planning/output/self_plan_500_stdin/results.jsonl \
+  --teacher-plan-path /mnt/hdd/project_sLM_planning/output/teacher_plan_500_stdin/results.jsonl \
+  --output-dir ./archive/comparison_500
 """
 
 from __future__ import annotations
@@ -24,22 +24,22 @@ import pandas as pd
 
 DEFAULT_DIRECT_PATH = Path(
     "/mnt/hdd/project_sLM_planning/output/"
-    "direct_50_stdin/results.jsonl"
+    "direct_500_stdin/results.jsonl"
 )
 
 DEFAULT_SELF_PLAN_PATH = Path(
     "/mnt/hdd/project_sLM_planning/output/"
-    "self_plan_50_stdin/results.jsonl"
+    "self_plan_500_stdin/results.jsonl"
 )
 
 DEFAULT_TEACHER_PLAN_PATH = Path(
     "/mnt/hdd/project_sLM_planning/output/"
-    "teacher_plan_50_stdin/results.jsonl"
+    "teacher_plan_500_stdin/results.jsonl"
 )
 
 DEFAULT_OUTPUT_DIR = Path(
     "/mnt/hdd/project_sLM_planning/output/"
-    "comparison_50"
+    "comparison_500"
 )
 
 
