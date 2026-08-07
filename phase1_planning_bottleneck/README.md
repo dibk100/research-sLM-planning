@@ -171,3 +171,130 @@ Phase 1에서는 이러한 planning-generation bottleneck의 존재 가능성을
 - etc.
 
 </details>
+
+<details>
+<summary><b>폴더 아키텍처 </b></summary>
+
+코드/설정은 로컬 저장소에, 실험 산출물(대용량)과 teacher plan 데이터는 `/mnt/hdd`에 분리 저장한다.
+
+### 1) 코드 저장소 (로컬)
+
+`~/workspace/project_sLM_planning/phase1_planning_bottleneck/`
+
+```
+phase1_planning_bottleneck/
+├── README.md                       # 본 문서 (작업 기록)
+├── requirements.txt
+│
+├── configs/                        # 실험 설정 (dataset / model / generation / output 경로)
+│   ├── direct.yaml
+│   ├── self_plan.yaml
+│   └── teacher_plan.yaml           # strategy.plan_path 로 teacher plan jsonl 지정
+│
+├── prompts/                        # 프롬프트 템플릿
+│   ├── direct.txt
+│   ├── self_plan_plan.txt          # 모델이 스스로 plan 생성
+│   ├── self_plan_code.txt          # 생성한 plan → code
+│   ├── teacher_plan_code.txt       # {teacher_plan} 주입 → code
+│   └── teacher_plan_generation.txt # teacher(Claude)용 plan 생성 규격
+│
+├── scripts/                        # 실행 엔트리포인트 (PYTHONPATH=. 필요)
+│   ├── run_direct.py
+│   ├── run_self_plan.py
+│   ├── run_teacher_plan.py
+│   ├── run_direct_then_self_plan.sh
+│   └── build_teacher_plans.py
+│
+├── src/
+│   ├── schemas.py                  # 레코드 스키마 정의
+│   ├── datasets/
+│   │   ├── dataset_loader.py       # LiveCodeBench v6 로딩 / stdin 필터 / limit
+│   │   └── inspect_livecodebench.py
+│   ├── models/
+│   │   ├── generator.py            # HF 모델 로딩 + 생성
+│   │   └── download_model.py
+│   ├── plans/
+│   │   └── teacher_plan_store.py   # teacher plan jsonl 조회 + verified 검사
+│   ├── strategies/
+│   │   ├── direct.py
+│   │   ├── self_plan.py
+│   │   └── teacher_plan.py
+│   ├── execution/
+│   │   ├── code_extractor.py       # 응답에서 코드 블록 추출
+│   │   └── evaluator.py            # stdin 테스트 실행 / 채점
+│   └── utils/
+│       ├── config.py, seed.py
+│       ├── jsonl_logger.py         # results.jsonl 기록 + resume
+│       ├── record_builder.py
+│       └── run_metadata.py         # run_metadata.json 생성
+│       ※ 각 모듈의 test_*.py 는 같은 디렉터리에 위치
+│
+├── data/
+│   └── teacher_plans/
+│       └── livecodebench_v6_teacher_plans.jsonl   # 초기 seed(10문항)
+│
+├── outputs/                        # 소규모 파일럿(10문항) 결과 + 분석 노트북
+│   ├── direct_stdin/               # results.jsonl, run_config.yaml,
+│   ├── self_plan_stdin/            #   run_metadata.json, summary.csv
+│   ├── teacher_plan_stdin/
+│   └── result_analysis/*.ipynb     # 01~04, observation01
+│
+├── archive/                        # 분석 스크립트 + 집계 결과
+│   ├── compare_three_strategies.py, compare_mcnemar.py
+│   ├── analyze_teacher_failures.py / analyze_teacher_recovered.py
+│   ├── summarize_teacher_failures.py / summarize_teacher_recovered.py
+│   └── comparison_500/             # 500문항 비교 집계 CSV
+│       ├── overall_summary.csv, difficulty_summary.csv
+│       ├── problem_comparison.csv, pattern_summary.csv
+│       ├── transition_summary.csv, transition_detail.csv
+│       └── cost_multipliers.csv
+│
+└── saved/                          # 참고용 스크래치 (livecodebench_loader.py 등)
+```
+
+### 2) 데이터 · 실험 산출물 저장 위치 (HDD)
+
+`/mnt/hdd/project_sLM_planning/`
+
+```
+/mnt/hdd/project_sLM_planning/
+├── data/teacher_plans/
+│   ├── livecodebench_v6_teacher_plans_opus5_v1.jsonl       #  50문항
+│   ├── livecodebench_v6_teacher_plans_opus5_v1_500.jsonl   # 500문항 (본 실험용)
+│   └── _v1_500_work/                                       # plan 작성 작업 디렉터리
+│       ├── order.json                                      #   loader 순서의 problem_id 500개
+│       ├── problems/b000.json … b490.json                  #   10문항 단위 배치 입력
+│       ├── plans/b000.json … b490.json                     #   배치별 작성된 plan
+│       └── build.py                                        #   plans/* → 최종 jsonl 빌드 + 형식 검증
+│
+└── output/                                                 # 실험 결과 (약 42 GB)
+    ├── direct_50_stdin/     · direct_500_stdin/
+    ├── self_plan_50_stdin/  · self_plan_500_stdin/
+    └── teacher_plan_50_stdin/ · teacher_plan_500_stdin/
+        └─ 각 디렉터리 구성: results.jsonl / run_config.yaml / run_metadata.json
+```
+
+| 항목 | 경로 | 비고 |
+| --- | --- | --- |
+| 코드·설정·프롬프트 | `~/workspace/project_sLM_planning/phase1_planning_bottleneck/` | git 관리 대상 |
+| Teacher plan (500) | `/mnt/hdd/project_sLM_planning/data/teacher_plans/livecodebench_v6_teacher_plans_opus5_v1_500.jsonl` | `configs/teacher_plan.yaml` 의 `strategy.plan_path` |
+| 신규 실험 결과 | `/mnt/hdd/project_sLM_planning/output/<experiment_name>/results.jsonl` | 각 yaml 의 `output.path` |
+| 파일럿(10문항) 결과 | `outputs/<strategy>_stdin/` | 로컬 보존, 노트북 분석용 |
+| 500문항 집계 CSV | `archive/comparison_500/` | 로컬 |
+| conda 환경 | `/mnt/hdd/conda_envs/slm` | 실행 시 `PYTHONPATH=.` 필요 |
+
+### 3) 산출물 스키마
+
+- **teacher plan jsonl** — `problem_id`, `teacher_plan`, `teacher_model`, `plan_version`, `verified`
+  (plan은 `- ` 로 시작하는 bullet 6개 이하)
+- **results.jsonl** (1문항 = 1줄) — 문제 메타(`problem_id`, `title`, `platform`, `contest_date`, `difficulty`),
+  입출력(`formatted_prompt`, `raw_output`, `extracted_code`), 생성 통계(`prompt_tokens`, `completion_tokens`, `generation_time`),
+  채점 결과(`passed`, `status`, `passed_tests`, `total_tests`, `execution_time`, `error_message`, `test_results`),
+  전략 정보(`strategy_trace`, teacher 실행 시 `teacher_plan*` 필드)
+
+> 용량 주의: `results.jsonl` 의 `test_results` 가 각 테스트의 입력/기대출력 원문을 그대로 포함하여
+> 500문항 실행 1회가 8–24 GB에 이른다. (`teacher_plan_500_stdin` 24 GB, `direct_500_stdin` 8.3 GB)
+> 로컬이 아닌 HDD에 저장하는 이유이며, 분석 시에는 필요한 필드만 스트리밍으로 읽는 편이 좋다.
+
+
+</details>
