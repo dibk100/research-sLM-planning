@@ -23,7 +23,7 @@ Phase 1 failure cases를 batch JSON 파일로 export한다.
 
 Example:
     PYTHONPATH=. python scripts/build_teacher_replans.py export \
-        --limit 50
+        --limit 500
 
 Output:
     /mnt/hdd/project_sLM_planning/data/teacher_replans/_v1_work/
@@ -52,7 +52,7 @@ Input:
 
 Output:
     /mnt/hdd/project_sLM_planning/data/teacher_plans/
-        livecodebench_v6_teacher_replans_opus5_v1_50.jsonl
+        livecodebench_v6_teacher_replans_opus5_v1_500.jsonl
 
 
 Expected replan batch format
@@ -96,7 +96,7 @@ DEFAULT_WORK_DIR = Path(
 DEFAULT_OUTPUT_PATH = Path(
     "/mnt/hdd/project_sLM_planning/"
     "data/teacher_plans/"
-    "livecodebench_v6_teacher_replans_opus5_v1_50.jsonl"
+    "livecodebench_v6_teacher_replans_opus5_v1_500.jsonl"
 )
 
 DEFAULT_BATCH_SIZE = 10

@@ -101,7 +101,20 @@ class Phase1FailureLoader:
             if not self._is_failure(record):
                 continue
 
-            example = self._build_example(record)
+            try:
+                example = self._build_example(record)
+            except ValueError as error:
+                problem_id = str(
+                    record.get("problem_id") or "<unknown>"
+                )
+
+                print(
+                    "[Phase1FailureLoader] "
+                    "Skipping unreconstructable failure: "
+                    f"{problem_id} | {error}"
+                )
+                continue
+
             feedback = self._build_feedback(record)
 
             yield FailureCase(

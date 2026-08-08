@@ -11,7 +11,7 @@ input:
   phase1_results_path: /mnt/hdd/project_sLM_planning/output/direct_500_stdin/results.jsonl
 
   # 우선 pilot
-  limit: 50
+  limit: 500
 
   difficulties: null
   include_statuses: null

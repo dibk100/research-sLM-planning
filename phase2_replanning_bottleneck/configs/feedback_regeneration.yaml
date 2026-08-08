@@ -11,7 +11,7 @@ input:
   phase1_results_path: /mnt/hdd/project_sLM_planning/output/direct_500_stdin/results.jsonl
 
   # null = 모든 eligible failure
-  limit: 50
+  limit: 500
 
   # null = 모든 난이도
   difficulties: null
