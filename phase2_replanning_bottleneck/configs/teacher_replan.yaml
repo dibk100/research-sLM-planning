@@ -3,12 +3,12 @@ experiment:
   seed: 42
 
 model:
-  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
+  name_or_path: Qwen/Qwen2.5-3B-Instruct
   dtype: bfloat16
   device_map: auto
 
 input:
-  phase1_results_path: /mnt/hdd/project_sLM_planning/output/direct_500_stdin/results.jsonl
+  phase1_results_path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/direct_500_stdin/results.jsonl
 
   # 우선 sanity/pilot
   limit: 500
@@ -36,5 +36,5 @@ evaluation:
   timeout_seconds: 5.0
 
 output:
-  path: /mnt/hdd/project_sLM_planning/output/phase2_teacher_replan_500/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/phase2_teacher_replan_500/results.jsonl
   resume: true
