@@ -10,7 +10,7 @@ dataset:
   limit: 500                  # num_rows: 1055
 
 model:
-  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
+  name_or_path: Qwen/Qwen2.5-3B-Instruct
   dtype: bfloat16
   device_map: auto
   trust_remote_code: true
@@ -33,5 +33,5 @@ evaluation:
   include_private_tests: true
 
 output:
-  path: /mnt/hdd/project_sLM_planning/output/direct_500_stdin/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/direct_500_stdin/results.jsonl
   resume: true
