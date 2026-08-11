@@ -1,0 +1,64 @@
+# Phase 3-B: Code Best-of-N with fixed Self-Plan (full 500 problems)
+
+# Phase 3-A와 달라지는 유일한 항목: 무엇을 sampling하는가.
+#   Phase 3-A: plan temperature 0.7, 문제당 plan 8개 / code greedy
+#   Phase 3-B: plan 고정(Phase 1 self-plan 재사용), code temperature 0.8로 8개
+#   (candidate 간 차이를 'code sampling'에만 귀속시키기 위함)
+
+experiment:
+  name: phase3b_code_best_of_n
+  seed: 42
+
+dataset:
+  name: livecodebench_v6
+  split: test
+  release_version: release_v6
+  test_type: stdin
+  limit: 500
+
+model:
+  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
+  dtype: bfloat16
+  device_map: auto
+  trust_remote_code: false
+
+# ★ Phase 3-B 전용: plan을 생성하지 않고 Phase 1 결과에서 읽어온다.
+fixed_plan:
+  source: /mnt/hdd/project_sLM_planning/output/self_plan_500_stdin/results.jsonl
+  # results.jsonl 레코드에서 plan 텍스트를 꺼낼 필드
+  plan_field: plan_text
+  # plan이 비어있거나 없는 문제 처리: skip | error
+  on_missing: error
+
+sampling:
+  # N=8까지 한 번만 생성한다.
+  # N=1,2,4는 분석 단계에서 candidate prefix로 얻는다.
+  num_samples: 8
+
+generation:
+  code:
+    max_new_tokens: 1024       # Phase 1과 동일
+    temperature: 0.8           # Phase 3-B의 유일한 핵심 변경
+    top_p: 0.95
+
+strategy:
+  name: fixed_plan_code_best_of_n
+  # 프롬프트는 phase1_planning_bottleneck/prompts/ 에서 직접 읽는다.
+  code_prompt_path: self_plan_code.txt
+  system_prompt: >
+    You are an expert competitive programming assistant.
+    Analyze problems carefully and generate correct and efficient Python solutions.
+
+evaluation:
+  timeout_seconds: 5.0
+  include_public_tests: true
+  include_private_tests: true
+
+output:
+  path: /mnt/hdd/project_sLM_planning/output_phase3b/qwen25_coder_3b/best_of_8/results.jsonl
+  resume: true
+
+  # 문제당 candidate가 8개라 프롬프트/테스트 상세를 모두 저장하면 용량이 폭증한다.
+  # full run에서는 끄고, sanity run에서만 켠다.
+  store_prompts: false
+  store_test_results: false
