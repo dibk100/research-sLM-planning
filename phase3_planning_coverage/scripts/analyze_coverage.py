@@ -19,13 +19,11 @@ candidate 순서가 고정된 sampling sequence이므로 prefix가 곧 compute s
 
 Usage:
 
-python -m scripts.analyze_coverage \
+PYTHONPATH=. python -m scripts.analyze_coverage \
   --results /mnt/hdd/project_sLM_planning/output_phase3/qwen25_coder_3b/best_of_8/results.jsonl \
-  --output-dir outputs/qwen25_coder_3b/best_of_8
+  --phase1-pass-rate 0.168 \
+  --teacher-pass-rate 0.340
 
-python -m scripts.analyze_coverage \
-  --results <results.jsonl> \
-  --phase1-pass-rate 0.168
 """
 
 from __future__ import annotations
@@ -65,12 +63,13 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--output-dir",
-        default=None,
+        default='./archive/analysis',
         help=(
             "Directory for analysis CSV files. "
             "Defaults to <results dir>/analysis."
         ),
     )
+
 
     parser.add_argument(
         "--phase1-pass-rate",
@@ -524,8 +523,8 @@ def main() -> int:
 
     output_dir = Path(
         args.output_dir
-        if args.output_dir is not None
-        else results_path.parent / "analysis"
+        if args.output_dir
+        else Path.cwd() / "archive" / "analysis"
     )
 
     overall = coverage_rows(records, ks, num_samples)

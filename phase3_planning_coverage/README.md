@@ -49,10 +49,7 @@ phase3_planning_coverage/
 ├── README.md
 ├── requirements.txt
 ├── configs/
-│   ├── qwen25_coder_3b.yaml           # full 500문제
-│   └── qwen25_coder_3b_sanity.yaml    # sanity check 20문제
-├── data/
-│   └── livecodebench_500.jsonl        # Phase 1과 동일한 500 problem ID (고정)
+│   └── qwen25_coder_3b.yaml    
 ├── src/
 │   ├── common/                        # Phase 1에서 검증된 인프라 (수정 금지)
 │   │   ├── schemas.py
@@ -67,11 +64,10 @@ phase3_planning_coverage/
 │   └── utils.py                       # candidate 스키마 / Oracle@k / manifest 검증
 ├── scripts/
 │   ├── run_best_of_n.py               # 실험 러너
-│   ├── analyze_coverage.py            # Oracle@1/2/4/8 분석
 │   ├── sanity_check.py                # full run 전 검증
 │   └── freeze_problem_ids.py          # 500 problem ID manifest 생성/검증
-└── outputs/
-    └── qwen25_coder_3b/best_of_8/     # 분석 CSV 저장 위치
+└── .../
+    
 ```
 
 `src/common/`은 Phase 1 `src/`를 그대로 복사한 것이며, import 경로(`from src.` → `from src.common.`) 외에는 한 글자도 다르지 않다. 다음 명령으로 언제든 확인할 수 있다.
