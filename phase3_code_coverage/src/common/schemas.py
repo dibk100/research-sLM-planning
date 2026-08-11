@@ -1,24 +1,3 @@
-"""
-공통 데이터 구조 : 실험 전반에서 공유하는 데이터 스키마 설정
-
-Direct 단계부터 strategy="direct"를 기록하고, 이후 동일한 스키마로 self_plan, teacher_plan을 저장할 수 있도록 구성함.
-
-formatted_prompt
-= 최종 코드 생성에 사용한 프롬프트
-
-raw_output
-= 최종 코드 생성 출력
-
-prompt_tokens
-= 계획 호출 + 코드 호출의 전체 입력 토큰
-
-completion_tokens
-= 계획 호출 + 코드 호출의 전체 생성 토큰
-
-generation_time
-= 계획 호출 + 코드 호출의 전체 생성 시간
-
-"""
 
 from dataclasses import asdict, dataclass, field
 from typing import Any

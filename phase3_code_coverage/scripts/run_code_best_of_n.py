@@ -313,11 +313,7 @@ def run_code_candidate(
             code_sample.raw_output
         ),
 
-        "code": getattr(
-            outcome,
-            "code",
-            "",
-        ),
+        "extracted_code": outcome.extracted_code,
 
         "passed": (
             outcome.passed

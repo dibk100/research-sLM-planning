@@ -17,10 +17,11 @@ from src.common.execution.code_extractor import (
 from src.common.execution.evaluator import Evaluator
 from src.common.schemas import ProblemExample
 
-
 @dataclass
 class ExecutionOutcome:
     """candidate 하나의 실행 결과 요약."""
+
+    extracted_code: str
 
     passed: bool
     status: str
@@ -48,6 +49,7 @@ def build_failure_evaluation(
     표준 ExecutionOutcome 형태로 만든다.
     """
     return ExecutionOutcome(
+        extracted_code="",
         passed=False,
         status=status,
         num_tests=num_tests,
@@ -210,21 +212,14 @@ class CandidateExecutor:
             serialized_test_results = []
 
         return ExecutionOutcome(
-            passed=bool(
-                evaluation.passed
-            ),
-            status=str(
-                evaluation.status
-            ),
+            extracted_code=extracted_code,
+            passed=bool(evaluation.passed),
+            status=str(evaluation.status),
             num_tests=num_tests,
             num_passed=num_passed,
             test_pass_ratio=ratio,
-            error_message=(
-                evaluation.error_message
-            ),
-            test_results=(
-                serialized_test_results
-            ),
+            error_message=evaluation.error_message,
+            test_results=serialized_test_results,
             execution_seconds=float(
                 evaluation.execution_time
             ),

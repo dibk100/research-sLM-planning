@@ -21,7 +21,6 @@ PYTHONPATH=. python -m scripts.sanity_check \
   --require-code-diversity
   
 """
-
 from __future__ import annotations
 
 import argparse
@@ -35,11 +34,6 @@ DEFAULT_PHASE1_RESULTS = Path(
     "/mnt/hdd/project_sLM_planning/output/"
     "self_plan_500_stdin/results.jsonl"
 )
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def parse_args() -> argparse.Namespace:
@@ -59,40 +53,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--phase1-results",
         default=str(DEFAULT_PHASE1_RESULTS),
-        help=(
-            "Phase 1 Self-Plan results.jsonl "
-            "used as fixed-plan source."
-        ),
+        help="Phase 1 Self-Plan results.jsonl.",
     )
 
     parser.add_argument(
         "--expected-problems",
         type=int,
         default=10,
-        help="Expected pilot problem count.",
     )
 
     parser.add_argument(
         "--expected-samples",
         type=int,
         default=8,
-        help="Expected code samples per problem.",
     )
 
     parser.add_argument(
         "--require-code-diversity",
         action="store_true",
-        help=(
-            "Fail if stochastic code generation "
-            "produces no diversity."
-        ),
     )
 
     return parser.parse_args()
 
 
 # ---------------------------------------------------------------------------
-# JSONL loading
+# JSONL
 # ---------------------------------------------------------------------------
 
 
@@ -110,7 +95,6 @@ def load_jsonl(
         "r",
         encoding="utf-8",
     ) as file:
-
         for line_number, line in enumerate(
             file,
             start=1,
@@ -124,31 +108,25 @@ def load_jsonl(
                 record = json.loads(
                     stripped
                 )
-
             except json.JSONDecodeError as error:
                 raise ValueError(
                     f"Invalid JSONL: "
                     f"{path}:{line_number}"
                 ) from error
 
-            if not isinstance(
-                record,
-                dict,
-            ):
+            if not isinstance(record, dict):
                 raise ValueError(
-                    "JSONL record must be "
-                    f"an object: {path}:{line_number}"
+                    f"JSONL record is not an object: "
+                    f"{path}:{line_number}"
                 )
 
-            records.append(
-                record
-            )
+            records.append(record)
 
     return records
 
 
 # ---------------------------------------------------------------------------
-# Phase 1 fixed-plan loading
+# Phase 1 fixed plans
 # ---------------------------------------------------------------------------
 
 
@@ -157,14 +135,6 @@ def extract_phase1_plan(
     *,
     line_number: int,
 ) -> str:
-    """
-    Phase 1 Self-Plan에서 실제 생성된 plan:
-
-        strategy_trace
-          -> name == "plan_generation"
-          -> raw_output
-    """
-
     trace = record.get(
         "strategy_trace"
     )
@@ -187,8 +157,8 @@ def extract_phase1_plan(
         raise ValueError(
             "Expected exactly one "
             "plan_generation step at "
-            f"Phase 1 line {line_number}, "
-            f"found {len(plan_steps)}."
+            f"Phase 1 line {line_number}; "
+            f"found={len(plan_steps)}."
         )
 
     raw_output = plan_steps[0].get(
@@ -200,16 +170,16 @@ def extract_phase1_plan(
         str,
     ):
         raise ValueError(
-            "plan_generation.raw_output "
-            f"is invalid at line {line_number}."
+            "Invalid plan_generation.raw_output "
+            f"at Phase 1 line {line_number}."
         )
 
     plan = raw_output.strip()
 
     if not plan:
         raise ValueError(
-            "Empty Phase 1 plan at "
-            f"line {line_number}."
+            "Empty plan_generation.raw_output "
+            f"at Phase 1 line {line_number}."
         )
 
     return plan
@@ -237,8 +207,8 @@ def load_phase1_plans(
 
         if not problem_id:
             raise ValueError(
-                "Missing problem_id in "
-                f"Phase 1 line {line_number}."
+                "Empty Phase 1 problem_id at "
+                f"line {line_number}."
             )
 
         if problem_id in plans:
@@ -247,18 +217,18 @@ def load_phase1_plans(
                 f"{problem_id}"
             )
 
-        strategy = str(
-            record.get(
-                "strategy",
-                "",
-            )
-        ).strip()
-
-        if strategy != "self_plan":
+        if (
+            str(
+                record.get(
+                    "strategy",
+                    "",
+                )
+            ).strip()
+            != "self_plan"
+        ):
             raise ValueError(
-                f"{problem_id}: expected "
-                "strategy='self_plan', "
-                f"got '{strategy}'."
+                f"{problem_id}: "
+                "source record is not self_plan."
             )
 
         plans[problem_id] = (
@@ -304,7 +274,12 @@ def coverage_at_k(
 ) -> int:
     return int(
         any(
-            bool(candidate["passed"])
+            bool(
+                candidate.get(
+                    "passed",
+                    False,
+                )
+            )
             for candidate
             in candidates[:k]
         )
@@ -344,10 +319,6 @@ def main() -> int:
         Counter()
     )
 
-    # ------------------------------------------------------------------
-    # Header
-    # ------------------------------------------------------------------
-
     print("=" * 80)
     print(
         "Phase 3-B Code Best-of-N "
@@ -359,34 +330,29 @@ def main() -> int:
         f"Results            : "
         f"{results_path}"
     )
-
     print(
         f"Phase 1 source     : "
         f"{phase1_path}"
     )
-
     print(
         f"Phase 1 plans      : "
         f"{len(phase1_plans)}"
     )
-
     print(
         f"Observed problems  : "
         f"{len(results)}"
     )
-
     print(
         f"Expected problems  : "
         f"{args.expected_problems}"
     )
-
     print(
         f"Expected samples   : "
         f"{args.expected_samples}"
     )
 
     # ------------------------------------------------------------------
-    # Problem count
+    # Global problem checks
     # ------------------------------------------------------------------
 
     if (
@@ -399,37 +365,34 @@ def main() -> int:
             f"observed={len(results)}"
         )
 
-    # ------------------------------------------------------------------
-    # Duplicate problem IDs
-    # ------------------------------------------------------------------
-
     problem_ids = [
         str(
             record.get(
                 "problem_id",
                 "",
             )
-        )
+        ).strip()
         for record in results
     ]
 
-    duplicate_ids = [
+    duplicate_problem_ids = [
         problem_id
         for problem_id, count
         in Counter(
             problem_ids
         ).items()
-        if count > 1
+        if problem_id
+        and count > 1
     ]
 
-    if duplicate_ids:
+    if duplicate_problem_ids:
         errors.append(
-            "Duplicate Phase 3-B "
-            f"problem IDs: {duplicate_ids[:20]}"
+            "Duplicate Phase 3-B problem IDs: "
+            f"{duplicate_problem_ids[:20]}"
         )
 
     # ------------------------------------------------------------------
-    # Aggregate counters
+    # Counters
     # ------------------------------------------------------------------
 
     total_candidates = 0
@@ -439,6 +402,7 @@ def main() -> int:
 
     invalid_candidate_counts = 0
     invalid_sample_sequences = 0
+
     duplicate_seed_problems = 0
     missing_seeds = 0
 
@@ -460,7 +424,7 @@ def main() -> int:
     )
 
     # ------------------------------------------------------------------
-    # Per-problem checks
+    # Per-problem
     # ------------------------------------------------------------------
 
     for record in results:
@@ -473,13 +437,13 @@ def main() -> int:
 
         if not problem_id:
             errors.append(
-                "Result record with "
-                "empty problem_id."
+                "Empty problem_id in "
+                "Phase 3-B result."
             )
             continue
 
         # --------------------------------------------------------------
-        # Fixed plan source
+        # Fixed plan equality
         # --------------------------------------------------------------
 
         fixed_plan = str(
@@ -500,7 +464,7 @@ def main() -> int:
 
             errors.append(
                 f"{problem_id}: "
-                "not found in Phase 1 "
+                "missing from Phase 1 "
                 "Self-Plan results."
             )
 
@@ -519,9 +483,8 @@ def main() -> int:
 
                 errors.append(
                     f"{problem_id}: "
-                    "Phase 3-B fixed_plan "
-                    "does not match "
-                    "Phase 1 plan_generation."
+                    "fixed_plan != Phase 1 "
+                    "plan_generation.raw_output."
                 )
 
         # --------------------------------------------------------------
@@ -529,8 +492,7 @@ def main() -> int:
         # --------------------------------------------------------------
 
         candidates = record.get(
-            "candidates",
-            [],
+            "candidates"
         )
 
         if not isinstance(
@@ -555,16 +517,16 @@ def main() -> int:
 
             errors.append(
                 f"{problem_id}: "
-                f"expected "
-                f"{args.expected_samples} "
-                f"candidates, got "
-                f"{len(candidates)}."
+                f"candidate count="
+                f"{len(candidates)}, "
+                f"expected="
+                f"{args.expected_samples}."
             )
 
             continue
 
         # --------------------------------------------------------------
-        # sample_id ordering
+        # sample_id
         # --------------------------------------------------------------
 
         sample_ids = [
@@ -585,13 +547,13 @@ def main() -> int:
             invalid_sample_sequences += 1
 
             errors.append(
-                f"{problem_id}: invalid "
-                f"sample sequence "
-                f"{sample_ids}."
+                f"{problem_id}: "
+                "invalid sample sequence: "
+                f"{sample_ids}"
             )
 
         # --------------------------------------------------------------
-        # Seeds
+        # seed uniqueness
         # --------------------------------------------------------------
 
         seeds = [
@@ -612,14 +574,19 @@ def main() -> int:
             len(valid_seeds)
             != len(candidates)
         ):
-            missing_seeds += (
+            missing_count = (
                 len(candidates)
                 - len(valid_seeds)
             )
 
+            missing_seeds += (
+                missing_count
+            )
+
             errors.append(
                 f"{problem_id}: "
-                "missing candidate seed."
+                f"missing {missing_count} "
+                "candidate seeds."
             )
 
         elif (
@@ -634,16 +601,17 @@ def main() -> int:
             )
 
         # --------------------------------------------------------------
-        # Candidate structural checks
+        # Candidate checks
         # --------------------------------------------------------------
 
-        codes: list[str] = []
+        extracted_codes: list[str] = []
 
         for candidate in candidates:
             sample_id = int(
-                candidate[
-                    "sample_id"
-                ]
+                candidate.get(
+                    "sample_id",
+                    -1,
+                )
             )
 
             if not bool(
@@ -655,8 +623,8 @@ def main() -> int:
                 prompt_linkage_failures += 1
 
                 errors.append(
-                    f"{problem_id}/"
-                    f"sample{sample_id}: "
+                    f"{problem_id}/sample"
+                    f"{sample_id}: "
                     "plan_in_code_prompt=False."
                 )
 
@@ -670,19 +638,18 @@ def main() -> int:
             if not raw_output:
                 empty_raw_outputs += 1
 
-            code = str(
+            extracted_code = str(
                 candidate.get(
-                    "code",
+                    "extracted_code",
                     "",
                 )
             ).strip()
 
-            if not code:
+            if not extracted_code:
                 empty_extracted_codes += 1
-
             else:
-                codes.append(
-                    code
+                extracted_codes.append(
+                    extracted_code
                 )
 
             ratio = float(
@@ -693,13 +660,15 @@ def main() -> int:
             )
 
             if not (
-                0.0 <= ratio <= 1.0
+                0.0
+                <= ratio
+                <= 1.0
             ):
                 invalid_ratios += 1
 
                 errors.append(
-                    f"{problem_id}/"
-                    f"sample{sample_id}: "
+                    f"{problem_id}/sample"
+                    f"{sample_id}: "
                     "invalid "
                     f"test_pass_ratio={ratio}"
                 )
@@ -718,10 +687,10 @@ def main() -> int:
                 pass_ratio_mismatches += 1
 
                 errors.append(
-                    f"{problem_id}/"
-                    f"sample{sample_id}: "
+                    f"{problem_id}/sample"
+                    f"{sample_id}: "
                     "passed=True but "
-                    f"ratio={ratio}"
+                    f"ratio={ratio}."
                 )
 
             status = str(
@@ -739,9 +708,11 @@ def main() -> int:
         # Code diversity
         # --------------------------------------------------------------
 
-        if codes:
+        if extracted_codes:
             distinct_codes = len(
-                set(codes)
+                set(
+                    extracted_codes
+                )
             )
 
             if distinct_codes == 1:
@@ -749,77 +720,73 @@ def main() -> int:
 
             if (
                 distinct_codes
-                == len(codes)
+                == len(
+                    extracted_codes
+                )
             ):
                 fully_distinct_problems += 1
 
         # --------------------------------------------------------------
-        # Problem-level Oracle sanity
+        # Stored summary consistency
         # --------------------------------------------------------------
-
-        summary = record.get(
-            "summary",
-            {},
-        )
 
         calculated_num_passed = sum(
             bool(
-                candidate[
-                    "passed"
-                ]
+                candidate.get(
+                    "passed",
+                    False,
+                )
             )
             for candidate
             in candidates
         )
 
         calculated_oracle = (
-            calculated_num_passed > 0
+            calculated_num_passed
+            > 0
         )
 
-        if isinstance(summary, dict):
+        summary = record.get(
+            "summary",
+            {},
+        )
 
-            stored_num_passed = (
-                summary.get(
-                    "num_passed"
-                )
-            )
-
+        if isinstance(
+            summary,
+            dict,
+        ):
             if (
-                stored_num_passed
-                is not None
+                "num_passed"
+                in summary
                 and int(
-                    stored_num_passed
+                    summary[
+                        "num_passed"
+                    ]
                 )
                 != calculated_num_passed
             ):
                 errors.append(
                     f"{problem_id}: "
-                    "summary.num_passed "
-                    "mismatch."
+                    "summary.num_passed mismatch."
                 )
-
-            stored_oracle = (
-                summary.get(
-                    "oracle_passed"
-                )
-            )
 
             if (
-                stored_oracle
-                is not None
+                "oracle_passed"
+                in summary
                 and bool(
-                    stored_oracle
+                    summary[
+                        "oracle_passed"
+                    ]
                 )
                 != calculated_oracle
             ):
                 errors.append(
                     f"{problem_id}: "
-                    "summary.oracle_passed "
-                    "mismatch."
+                    "summary.oracle_passed mismatch."
                 )
 
         # --------------------------------------------------------------
-        # Prefix monotonicity
+        # Per-problem prefix monotonicity
         # --------------------------------------------------------------
 
         ks = prefix_ks(
@@ -839,24 +806,15 @@ def main() -> int:
             if current < previous:
                 errors.append(
                     f"{problem_id}: "
-                    "Code Coverage "
-                    "monotonicity violation "
-                    f"at k={k}."
+                    "coverage monotonicity "
+                    f"violation at k={k}."
                 )
 
             previous = current
 
     # ------------------------------------------------------------------
-    # Aggregate coverage
+    # Aggregate
     # ------------------------------------------------------------------
-
-    ks = prefix_ks(
-        args.expected_samples
-    )
-
-    coverage_rows: list[
-        tuple[int, int, float]
-    ] = []
 
     valid_records = [
         record
@@ -873,43 +831,14 @@ def main() -> int:
         == args.expected_samples
     ]
 
-    for k in ks:
-        solved = sum(
-            coverage_at_k(
-                record["candidates"],
-                k,
-            )
-            for record
-            in valid_records
-        )
-
-        rate = (
-            solved
-            / len(valid_records)
-            if valid_records
-            else 0.0
-        )
-
-        coverage_rows.append(
-            (
-                k,
-                solved,
-                rate,
-            )
-        )
-
-    # ------------------------------------------------------------------
-    # Report
-    # ------------------------------------------------------------------
-
-    print()
-    print("Integrity")
-    print("-" * 80)
-
     expected_candidates = (
         args.expected_problems
         * args.expected_samples
     )
+
+    print()
+    print("Integrity")
+    print("-" * 80)
 
     print(
         f"Problems               : "
@@ -969,7 +898,7 @@ def main() -> int:
     )
 
     # ------------------------------------------------------------------
-    # Diversity
+    # Code diversity
     # ------------------------------------------------------------------
 
     print()
@@ -1004,8 +933,8 @@ def main() -> int:
         == len(valid_records)
     ):
         message = (
-            "All problems produced "
-            "identical code candidates. "
+            "Every problem produced "
+            "only one distinct code. "
             "Stochastic code sampling "
             "may not be active."
         )
@@ -1014,11 +943,23 @@ def main() -> int:
             errors.append(
                 message
             )
-
         else:
             warnings.append(
                 message
             )
+
+    # If every extracted code is empty,
+    # this is definitely a recording bug.
+    if (
+        total_candidates > 0
+        and empty_extracted_codes
+        == total_candidates
+    ):
+        errors.append(
+            "All extracted_code fields are empty. "
+            "Check src/execute.py and "
+            "run_code_best_of_n.py result serialization."
+        )
 
     # ------------------------------------------------------------------
     # Status
@@ -1034,8 +975,7 @@ def main() -> int:
         status_counter.most_common()
     ):
         ratio = (
-            count
-            / total_candidates
+            count / total_candidates
             if total_candidates
             else 0.0
         )
@@ -1045,8 +985,6 @@ def main() -> int:
             f"{count:>5} "
             f"{ratio:>8.4f}"
         )
-
-    # Infrastructure failures
 
     infrastructure_failures = (
         status_counter[
@@ -1077,7 +1015,7 @@ def main() -> int:
         )
 
     # ------------------------------------------------------------------
-    # Coverage
+    # Code Coverage@k
     # ------------------------------------------------------------------
 
     print()
@@ -1090,27 +1028,50 @@ def main() -> int:
         f"{'Coverage':>10}"
     )
 
+    ks = prefix_ks(
+        args.expected_samples
+    )
+
     previous_rate = -1.0
 
-    for k, solved, rate in (
-        coverage_rows
-    ):
+    for k in ks:
+        solved = sum(
+            coverage_at_k(
+                record["candidates"],
+                k,
+            )
+            for record
+            in valid_records
+        )
+
+        coverage = (
+            solved
+            / len(valid_records)
+            if valid_records
+            else 0.0
+        )
+
         print(
             f"{k:>4} "
             f"{solved:>8} "
-            f"{rate:>10.4f}"
+            f"{coverage:>10.4f}"
         )
 
-        if rate < previous_rate:
+        if (
+            coverage
+            < previous_rate
+        ):
             errors.append(
                 "Aggregate Code Coverage "
                 f"decreased at k={k}."
             )
 
-        previous_rate = rate
+        previous_rate = (
+            coverage
+        )
 
     # ------------------------------------------------------------------
-    # Final result
+    # Final
     # ------------------------------------------------------------------
 
     print()
@@ -1148,33 +1109,23 @@ def main() -> int:
     print(
         "[OK] Phase 1 fixed plans match exactly."
     )
-
     print(
-        "[OK] Problem/candidate counts are valid."
+        "[OK] Candidate counts and ordering are valid."
     )
-
     print(
-        "[OK] sample_id ordering is valid."
+        "[OK] Candidate seeds are valid."
     )
-
     print(
-        "[OK] Candidate seeds are unique."
+        "[OK] extracted_code is stored correctly."
     )
-
     print(
         "[OK] Fixed plans are linked to code prompts."
     )
-
     print(
-        "[OK] Evaluation ratios are valid."
+        "[OK] Evaluation results are structurally valid."
     )
-
     print(
         "[OK] Code Coverage@k is monotonic."
-    )
-
-    print(
-        "[OK] No structural pipeline errors found."
     )
 
     return 0
