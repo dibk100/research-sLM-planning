@@ -1,7 +1,32 @@
-"""YAML config 로드/검증.
+"""YAML configuration loader."""
 
-Phase 1에서 검증된 공용 인프라. 수정 금지.
-실제 구현은 phase1_planning_bottleneck / phase3_planning_coverage의
-동일 경로 파일을 그대로 복사해서 채운다.
-"""
 from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+def load_config(
+    config_path: str | Path,
+) -> dict[str, Any]:
+    path = Path(config_path)
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Config file not found: {path}"
+        )
+
+    with path.open(
+        "r",
+        encoding="utf-8",
+    ) as file:
+        config = yaml.safe_load(file)
+
+    if not isinstance(config, dict):
+        raise ValueError(
+            f"Config must be a dictionary: {path}"
+        )
+
+    return config

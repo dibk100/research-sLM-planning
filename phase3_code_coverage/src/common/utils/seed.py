@@ -1,7 +1,17 @@
-"""전역 시드 고정.
+"""Random seed utilities."""
 
-Phase 1에서 검증된 공용 인프라. 수정 금지.
-실제 구현은 phase1_planning_bottleneck / phase3_planning_coverage의
-동일 경로 파일을 그대로 복사해서 채운다.
-"""
 from __future__ import annotations
+
+import random
+
+import numpy as np
+import torch
+
+
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
