@@ -26,7 +26,7 @@ model:
 sampling:
   # N=8까지 한 번만 생성한다.
   # N=1,2,4는 분석 단계에서 candidate prefix로 얻는다.
-  num_samples: 8
+  num_samples: 16
 
 generation:
   plan:
@@ -54,7 +54,7 @@ evaluation:
   include_private_tests: true
 
 output:
-  path: /mnt/hdd/project_sLM_planning/output_phase3/qwen25_coder_3b/best_of_8/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/output_phase3/qwen25_coder_3b/best_of_16/results.jsonl
   resume: true
 
   # 문제당 candidate가 8개라 프롬프트/테스트 상세를 모두 저장하면 용량이 폭증한다.
