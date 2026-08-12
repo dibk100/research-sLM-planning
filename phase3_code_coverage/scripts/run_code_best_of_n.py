@@ -2,7 +2,7 @@
 Phase 3-B: Code Best-of-N Coverage Control.
 
 PYTHONPATH=. python -m scripts.run_code_best_of_n \
-  --config configs/qwen25_coder_3b.yaml
+  --config configs/qwen25_coder_3b_coder.yaml
 
 연구 질문:
     고정된 self-generated plan에서 code만 여러 번 sampling할 때
