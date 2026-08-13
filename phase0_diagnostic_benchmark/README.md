@@ -32,9 +32,41 @@ AtCoder와 LeetCode 문제를 대상으로 Diagnostic Benchmark를 구성하였�
 > `stdin`과 `functional`을 독립적인 실험 변수로 해석하지 않고,
 > 플랫폼에 따른 평가 방식의 차이로 기록한다.
 
+### 평가 방식
+
+프로그램을 어떻게 실행하고, 테스트 데이터를 어떻게 전달하느냐의 차이를 가지고 있다.
+
+- `stdin` 방식 :
+     - 일반적인 표준 입력/출력 기반 코드 실행
+     - 문제의 입력을 프로그램의 stdin으로 넣고, 프로그램이 출력한 stdout을 정답과 비교하는 방식
+     - 평가 프로세스 : (Generated Code(스크립트)에 test 입력) -> [stdin] -> [프로그램] -> [stdout] -> Expected Output(숫자형태)와 비교
+
+- `functional`방식 :
+    - 함수 단위로 코드를 테스트하는 방식
+    - 특정 함수가 정의되어 있다고 보고 입력을 함수 인자로 전달하고 반환값을 확인.
+    - 구현해야할 함숙가 정해져있는 타입
+    - 평가 프로세스 : (test 입력) -> [Generated Code(함수형태)] -> [프로그램] -> [결과] -> Expected Output와 비교
+
+
+|        | stdin                 | functional           |
+| ------ | --------------------- | -------------------- |
+| 문제 설명  | 자연어                   | 자연어                  |
+| 모델 입력  | 문제 설명                 | 문제 설명 + 함수 구현 형태     |
+| 모델 출력  | 전체 프로그램               | 함수 구현                |
+| 실행 방식  | stdin → 프로그램 → stdout | 함수 호출 → return value |
+| 현재 LCB | AtCoder               | LeetCode             |
+
+
 ## 2. Codeforces
 
 Codeforces는 LiveCodeBench와 다른 특성의 경쟁 프로그래밍 문제를 추가하여 Planning 진단 범위를 확장하기 위한 목적으로 사용하였다.
+
+- **Source**: [open-r1/codeforces](https://huggingface.co/datasets/open-r1/codeforces)
+- **수집 기간**: 2020 ~ 2025
+- **데이터 수(default)** : train(9,550), test(468)
+- **수집 플랫폼**: Codeforces
+- **평가 방식**: `stdin`
+- **특징** : Qwen-VL을 사용한 LaTeX 방정식의 텍스트 렌더링, DeepSeek-R1기반 테스트 생성 및 평가기로 데이터셋 구축함.
 
 ### ISSUE
 - Codeforces 데이터셋에는 DeepSeek-R1 기반 생성 테스트(generated_tests) 및 평가기(generated_checker)가 존재한다.   
@@ -54,6 +86,9 @@ Codeforces는 LiveCodeBench와 다른 특성의 경쟁 프로그래밍 문제를
 | `livecodebench_v6/stdin/`      | AtCoder / stdin       |     300 |
 | `livecodebench_v6/functional/` | LeetCode / functional |     300 |
 | **Total**                      |                       | **698** |
+
+> **Note:** : 모델에게는 사람이 실제 문제를 읽을 때 제공되는 공식 문제 명세와 예제까지만 제공하고, 
+> hidden/private/official evaluation tests는 제공하지 않는다.
 
 ### 저장 구조
 
