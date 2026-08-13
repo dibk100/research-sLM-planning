@@ -1,5 +1,20 @@
 """
 공식 LiveCodeBench 평가 로직을 그대로 재사용하면서, test case를 하나씩 독립 평가하는 방식
+
+### Note.
+- LiveCodeBench가 반환한 result code를 직접 변환함
+- 즉, 모델이 생성한 Python 코드를 LiveCodeBench의 unit test에 실제로 실행시키는 과정에서 발생하는 오류를 변환함.
+
+LiveCodeBench 결과          현재 파이프라인의 status
+──────────────────────────────────────────────
+True                  →    PASS
+False 또는 -2         →    WRONG_ANSWER
+-3                    →    TIME_LIMIT_EXCEEDED
+-4                    →    RUNTIME_ERROR
+
+- WRONG_ANSWER : 실행 완료했는데 답이 틀림.
+- TIME_LIMIT_EXCEEDED: 테스트 케이스가 제한 시간 내 끝나지 않음.
+- RUNTIME_ERROR: 테스트 케이스에서 실행하는 과정에서 실행 중 오류로 종료됨.
 """
 
 # src/execution/diagnostic_evaluator.py

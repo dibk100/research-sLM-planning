@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from src.execution.evaluator import (
-    CombinedEvaluationResult,
-)
 from src.schemas import (
     CodeParseResult,
+    EvaluationResult,
     ExperimentRecord,
     ProblemExample,
     StrategyOutput,
@@ -20,16 +18,16 @@ def build_experiment_record(
     example: ProblemExample,
     strategy_output: StrategyOutput,
     parse_result: CodeParseResult,
-    evaluation: CombinedEvaluationResult,
+    evaluation: EvaluationResult,
     model_name: str,
     seed: int,
 ) -> ExperimentRecord:
     """
-    Combine problem, generation, parsing, and evaluation outputs
-    into one serializable experiment record.
+    Combine problem, generation, parsing, and exhaustive evaluation
+    outputs into one serializable experiment record.
 
-    Final correctness always follows the official evaluator.
-    Diagnostic evaluation is stored separately for analysis.
+    Final correctness is determined by exhaustive evaluation:
+    a problem passes only when all selected test cases pass.
     """
 
     if (
@@ -43,42 +41,18 @@ def build_experiment_record(
             f"{strategy_output.problem_id}"
         )
 
-    official = evaluation.official
-    diagnostic = evaluation.diagnostic
+    test_pass_ratio = (
+        evaluation.passed_tests
+        / evaluation.total_tests
+        if evaluation.total_tests > 0
+        else 0.0
+    )
 
-    if diagnostic is not None:
-        diagnostic_test_pass_ratio = (
-            diagnostic.passed_tests
-            / diagnostic.total_tests
-            if diagnostic.total_tests > 0
-            else 0.0
-        )
-
-        diagnostic_test_results = [
-            asdict(test_result)
-            for test_result
-            in diagnostic.test_results
-        ]
-
-        diagnostic_status = diagnostic.status
-        diagnostic_passed_tests = (
-            diagnostic.passed_tests
-        )
-        diagnostic_total_tests = (
-            diagnostic.total_tests
-        )
-        diagnostic_execution_time = (
-            diagnostic.execution_time
-        )
-
-    else:
-        diagnostic_test_pass_ratio = None
-        diagnostic_test_results = []
-
-        diagnostic_status = None
-        diagnostic_passed_tests = None
-        diagnostic_total_tests = None
-        diagnostic_execution_time = None
+    test_results = [
+        asdict(test_result)
+        for test_result
+        in evaluation.test_results
+    ]
 
     return ExperimentRecord(
         # Experiment identity
@@ -119,34 +93,29 @@ def build_experiment_record(
             strategy_output.generation_time
         ),
 
-        # Official evaluation
-        passed=official.passed,
-        status=official.status,
-        execution_time=(
-            official.execution_time
+        # Exhaustive evaluation
+        passed=evaluation.passed,
+        status=evaluation.status,
+
+        passed_tests=(
+            evaluation.passed_tests
         ),
-        error_message=(
-            official.error_message
+        total_tests=(
+            evaluation.total_tests
+        ),
+        test_pass_ratio=(
+            test_pass_ratio
         ),
 
-        # Diagnostic evaluation
-        diagnostic_status=(
-            diagnostic_status
+        execution_time=(
+            evaluation.execution_time
         ),
-        diagnostic_passed_tests=(
-            diagnostic_passed_tests
+        error_message=(
+            evaluation.error_message
         ),
-        diagnostic_total_tests=(
-            diagnostic_total_tests
-        ),
-        diagnostic_test_pass_ratio=(
-            diagnostic_test_pass_ratio
-        ),
-        diagnostic_execution_time=(
-            diagnostic_execution_time
-        ),
-        diagnostic_test_results=(
-            diagnostic_test_results
+
+        test_results=(
+            test_results
         ),
 
         # Strategy trace
