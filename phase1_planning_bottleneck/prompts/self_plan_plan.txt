@@ -12,9 +12,6 @@ Requirements:
 - Do not include headings, introductions, or conclusions.
 - Return only the bullet-point plan.
 
-Problem Title:
-{title}
-
 Problem:
 {problem}
 

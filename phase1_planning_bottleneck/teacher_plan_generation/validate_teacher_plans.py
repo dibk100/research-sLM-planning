@@ -8,7 +8,7 @@
 
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase1_planning_bottleneck/teacher_plan_generation/validate_teacher_plans.py \
-  --config phase1_planning_bottleneck/configs/teacher_plan_generation/livecodebench_v6_opus5_v1.yaml
+  --config phase1_planning_bottleneck/configs/teacher_plan_make.yaml
 
 """
 

@@ -8,9 +8,6 @@ Requirements:
 - Write output to standard output.
 - Use an efficient algorithm.
 
-Problem Title:
-{title}
-
 Problem:
 {problem}
 
