@@ -66,12 +66,12 @@ Codeforces는 LiveCodeBench와 다른 특성의 경쟁 프로그래밍 문제를
 - **데이터 수(default)** : train(9,550), test(468)
 - **수집 플랫폼**: Codeforces
 - **평가 방식**: `stdin`
-- **특징** : Qwen-VL을 사용한 LaTeX 방정식의 텍스트 렌더링, DeepSeek-R1기반 테스트 생성 및 평가기로 데이터셋 구축함.
+- **특징** : Qwen-VL을 사용한 LaTeX 방정식의 텍스트 렌더링, DeepSeek-R1기반 테스트 생성 및 평가기로 데이터셋 구축했다.
 
 ### ISSUE
 - Codeforces 데이터셋에는 DeepSeek-R1 기반 생성 테스트(generated_tests) 및 평가기(generated_checker)가 존재한다.   
 - 본 연구에서는 다른 LLM의 생성 결과에 의존하지 않는 평가를 위해 generated_checker에 의존하지 않고 공식 테스트 케이스(official_tests)를 중심으로 평가하고자 필터링을 진행한다.
-- Codeforces test split에는 468개의 문제가 존재했으나,공식 테스트 케이스의 완전성이 존재하는 문제는 20개로 필터링되었고, train split의 문제도 추가 진행했다.
+- Codeforces test split에는 468개의 문제가 존재했으나,공식 테스트 케이스의 완전성이 존재하는 문제는 20개로 필터링되었고, train split의 문제도 추가 진행하였다.
 
 ### Filtering
 - Codeforces 데이터셋의 official_tests_complete 필드를 사용하여 공식 테스트 케이스가 완전한 문제만 우선적으로 선별하였다.
@@ -90,7 +90,7 @@ Codeforces는 LiveCodeBench와 다른 특성의 경쟁 프로그래밍 문제를
 > **Note:** : 모델에게는 사람이 실제 문제를 읽을 때 제공되는 공식 문제 명세와 예제까지만 제공하고, 
 > hidden/private/official evaluation tests는 제공하지 않는다.
 
-### 저장 구조
+### 저장 구조(Local)
 
 ```text
 /mnt/hdd/project_sLM_planning/data/
