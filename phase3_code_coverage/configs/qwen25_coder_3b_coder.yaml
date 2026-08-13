@@ -1,0 +1,49 @@
+# Phase 3-B: Code Best-of-N with fixed Self-Plan (full 500 problems)
+experiment:
+  name: phase3b_code_best_of_n_coder
+  seed: 42
+
+dataset:
+  name: livecodebench_v6
+  split: test
+  release_version: release_v6
+  test_type: stdin
+  limit: 500
+
+model:
+  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
+  dtype: bfloat16
+  device_map: auto
+  trust_remote_code: true
+
+sampling:
+  num_samples: 16
+
+generation:
+  code:
+    max_new_tokens: 1024
+    temperature: 0.7
+    top_p: 0.95
+
+strategy:
+  name: fixed_plan_code_best_of_n
+
+  fixed_plan_results_path: /mnt/hdd/project_sLM_planning/output/self_plan_500_stdin/results.jsonl
+
+  code_prompt_path: self_plan_code.txt
+
+  system_prompt: >
+    You are an expert competitive programming assistant.
+    Analyze problems carefully and generate correct and efficient Python solutions.
+
+evaluation:
+  timeout_seconds: 5.0
+  include_public_tests: true
+  include_private_tests: true
+
+output:
+  path: /mnt/hdd/project_sLM_planning/output_phase3/qwen25_coder_3b/coder_best_of_16/results.jsonl
+
+  resume: true
+  store_prompts: false
+  store_test_results: false

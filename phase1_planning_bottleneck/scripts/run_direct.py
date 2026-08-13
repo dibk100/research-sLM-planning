@@ -1,40 +1,49 @@
-"""
-Direct Code Generation 통합 실행 스크립트
-
-usage: 
-
-python scripts/run_direct.py --config configs/direct.yaml
-
-python -m scripts.run_direct \
-  --config configs/direct.yaml
-
-python -m scripts.run_direct \
-  --config configs/direct.yaml \
-  --limit 3
-
-
-저장 결과 확인 : wc -l outputs/direct/results.jsonl
-head -n 1 outputs/direct/results.jsonl | python -m json.tool
+# phase1_planning_bottleneck/scripts/run_direct.py
 
 """
+run_direct.py
+│
+├── config 읽기
+├── dataset 준비
+├── model 준비
+├── DirectStrategy 준비
+├── parser/evaluator 준비
+└── Phase1Runner에 전달
+             ↓
+        runner.py
+        ├── resume
+        ├── strategy.run()
+        ├── parsing
+        ├── evaluation
+        ├── record build
+        ├── JSONL save
+        └── summary
+
+
+PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
+python phase1_planning_bottleneck/scripts/run_direct.py \
+  --config phase1_planning_bottleneck/configs/direct_sanity.yaml \
+  --limit 1 \
+  --no-resume
+
+"""
+
+
 from __future__ import annotations
 
 import argparse
-import traceback
 from pathlib import Path
 
-from src.datasets.dataset_loader import DatasetLoader
-from src.execution.code_extractor import (
-    CodeExtractionError,
-    CodeExtractor,
+from phase1_planning_bottleneck.runner import Phase1Runner
+from phase1_planning_bottleneck.strategies.direct import (
+    DirectStrategy,
 )
+
+from src.datasets.dataset_loader import load_dataset
 from src.execution.evaluator import Evaluator
 from src.models.generator import ModelGenerator
-from src.schemas import EvaluationResult
-from src.strategies.direct import DirectStrategy
+from src.parsing.code_parser import CodeParser
 from src.utils.config import load_config
-from src.utils.jsonl_logger import JSONLLogger
-from src.utils.record_builder import build_experiment_record
 from src.utils.run_metadata import (
     save_run_config,
     save_run_metadata,
@@ -44,10 +53,7 @@ from src.utils.seed import set_seed
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Run Direct code generation on "
-            "LiveCodeBench v6."
-        )
+        description="Run Phase 1 Direct code generation."
     )
 
     parser.add_argument(
@@ -60,58 +66,24 @@ def parse_args() -> argparse.Namespace:
         "--limit",
         type=int,
         default=None,
-        help=(
-            "Override dataset limit from config."
-        ),
+        help="Override dataset limit from config.",
     )
 
     parser.add_argument(
         "--output-path",
         default=None,
-        help=(
-            "Override output JSONL path."
-        ),
+        help="Override output JSONL path.",
     )
 
     parser.add_argument(
         "--no-resume",
         action="store_true",
-        help=(
-            "Disable resume and run all selected problems."
-        ),
+        help="Disable resume.",
     )
 
     return parser.parse_args()
 
-
-def build_failure_evaluation(
-    *,
-    status: str,
-    error: Exception,
-) -> EvaluationResult:
-    """실행을 중단하지 않고 실패 결과를 저장하기 위한 객체를 만든다."""
-    return EvaluationResult(
-        passed=False,
-        status=status,
-        passed_tests=0,
-        total_tests=0,
-        execution_time=0.0,
-        test_results=[],
-        error_message=str(error),
-    )
-
-
-def build_extraction_failure_evaluation(
-    error: Exception,
-) -> EvaluationResult:
-    return build_failure_evaluation(
-        status="EXTRACTION_ERROR",
-        error=error,
-    )
-
-
 def main() -> None:
-    
     args = parse_args()
     config = load_config(args.config)
 
@@ -123,7 +95,13 @@ def main() -> None:
     evaluation_config = config["evaluation"]
     output_config = config["output"]
 
-    seed = int(experiment_config["seed"])
+    # ------------------------------------------------------------------
+    # Seed / CLI overrides
+    # ------------------------------------------------------------------
+
+    seed = int(
+        experiment_config["seed"]
+    )
     set_seed(seed)
 
     dataset_limit = (
@@ -139,21 +117,32 @@ def main() -> None:
     )
 
     resume = (
-        bool(output_config.get("resume", True))
+        bool(
+            output_config.get(
+                "resume",
+                True,
+            )
+        )
         and not args.no_resume
     )
 
-    # CLI override를 실제 실행 설정에 반영한다.
+    # Save the actual execution configuration after CLI overrides.
     dataset_config["limit"] = dataset_limit
-    output_config["path"] = str(output_path)
+    output_config["path"] = str(
+        output_path
+    )
     output_config["resume"] = resume
+
+    # ------------------------------------------------------------------
+    # Run metadata
+    # ------------------------------------------------------------------
 
     output_dir = output_path.parent
 
     run_config_path = save_run_config(
         config=config,
         output_dir=output_dir,
-        overwrite=False,                                # overwrite=True로 설정하면 기존 config를 덮어쓰게 딤
+        overwrite=False,
     )
 
     run_metadata_path = save_run_metadata(
@@ -162,41 +151,56 @@ def main() -> None:
         overwrite=False,
     )
 
+    # ------------------------------------------------------------------
+    # Experiment header
+    # ------------------------------------------------------------------
+
     print("=" * 80)
-    print("Phase1 Direct Experiment")
+    print("Phase 1 Direct Experiment")
     print("=" * 80)
-    print(f"Experiment : {experiment_config['name']}")
-    print(f"Dataset    : {dataset_config['name']}")
-    print(f"Model      : {model_config['name_or_path']}")
+
+    print(
+        f"Experiment : "
+        f"{experiment_config['name']}"
+    )
+    print(
+        f"Dataset    : "
+        f"{dataset_config['name']}"
+    )
+    print(
+        f"Data path  : "
+        f"{dataset_config['path']}"
+    )
+    print(
+        f"Model      : "
+        f"{model_config['name_or_path']}"
+    )
     print(f"Seed       : {seed}")
     print(f"Limit      : {dataset_limit}")
     print(f"Output     : {output_path}")
     print(f"Run config : {run_config_path}")
     print(f"Metadata   : {run_metadata_path}")
     print(f"Resume     : {resume}")
-    print(f"Test type  : {dataset_config.get('test_type', 'stdin')}")
     print()
 
-    loader = DatasetLoader(
+    # ------------------------------------------------------------------
+    # Dataset
+    # ------------------------------------------------------------------
+
+    examples = load_dataset(
         dataset_name=dataset_config["name"],
-        split=dataset_config["split"],
+        data_path=dataset_config["path"],
         limit=dataset_limit,
-        test_type=dataset_config.get(
-            "test_type",
-            "stdin",
-        ),
-        release_version=dataset_config.get(
-            "release_version",
-            "release_v6",
-        ),
     )
 
-    examples = loader.load()
+    # ------------------------------------------------------------------
+    # Model
+    # ------------------------------------------------------------------
 
     generator = ModelGenerator(
-        model_name_or_path=model_config[
-            "name_or_path"
-        ],
+        model_name_or_path=(
+            model_config["name_or_path"]
+        ),
         dtype=model_config.get(
             "dtype",
             "bfloat16",
@@ -205,206 +209,105 @@ def main() -> None:
             "device_map",
             "auto",
         ),
-        trust_remote_code=model_config.get(
-            "trust_remote_code",
-            True,
+        trust_remote_code=(
+            model_config.get(
+                "trust_remote_code",
+                True,
+            )
         ),
     )
+
+    # ------------------------------------------------------------------
+    # Strategy
+    # ------------------------------------------------------------------
 
     strategy = DirectStrategy(
         generator=generator,
-        prompt_path=strategy_config[
-            "prompt_path"
-        ],
-        system_prompt=strategy_config.get(
-            "system_prompt"
+        prompt_path=(
+            strategy_config["prompt_path"]
         ),
-        max_new_tokens=generation_config[
-            "max_new_tokens"
-        ],
-        temperature=generation_config[
-            "temperature"
-        ],
-        top_p=generation_config[
-            "top_p"
-        ],
+        system_prompt=(
+            strategy_config.get(
+                "system_prompt"
+            )
+        ),
+        max_new_tokens=(
+            generation_config[
+                "max_new_tokens"
+            ]
+        ),
+        temperature=(
+            generation_config.get(
+                "temperature",
+                0.0,
+            )
+        ),
+        top_p=(
+            generation_config.get(
+                "top_p",
+                1.0,
+            )
+        ),
     )
 
-    extractor = CodeExtractor()
+    # ------------------------------------------------------------------
+    # Parser
+    # ------------------------------------------------------------------
 
+    parser = CodeParser()
+
+    # ------------------------------------------------------------------
+    # Evaluator
+    # ------------------------------------------------------------------
     evaluator = Evaluator(
-        timeout_seconds=evaluation_config[
-            "timeout_seconds"
-        ],
-        include_public_tests=evaluation_config[
-            "include_public_tests"
-        ],
-        include_private_tests=evaluation_config[
-            "include_private_tests"
-        ],
+        timeout_seconds=(
+            evaluation_config.get(
+                "timeout_seconds",
+                6,
+            )
+        ),
+        include_public_tests=(
+            evaluation_config.get(
+                "include_public_tests",
+                True,
+            )
+        ),
+        include_private_tests=(
+            evaluation_config.get(
+                "include_private_tests",
+                True,
+            )
+        ),
+        debug=(
+            evaluation_config.get(
+                "debug",
+                False,
+            )
+        ),
     )
 
-    logger = JSONLLogger(output_path)
+    # ------------------------------------------------------------------
+    # Shared Phase 1 Runner
+    # ------------------------------------------------------------------
 
-    completed_ids = (
-        logger.completed_ids()
-        if resume
-        else set()
+    runner = Phase1Runner(
+        strategy=strategy,
+        evaluator=evaluator,
+        parser=parser,
+        output_path=output_path,
+        model_name=(
+            model_config["name_or_path"]
+        ),
+        seed=seed,
+        resume=resume,
     )
 
-    if completed_ids:
-        print(
-            f"[Resume] Loaded "
-            f"{len(completed_ids)} completed problems."
-        )
-
-    total_selected = len(examples)
-    processed_count = 0
-    skipped_count = 0
-    pass_count = 0
-
-    for index, example in enumerate(
-        examples,
-        start=1,
-    ):
-        if example.problem_id in completed_ids:
-            skipped_count += 1
-            print(
-                f"[{index}/{total_selected}] "
-                f"[SKIP] {example.problem_id}"
-            )
-            continue
-
-        print()
-        print("-" * 80)
-        print(
-            f"[{index}/{total_selected}] "
-            f"{example.problem_id} | "
-            f"{example.difficulty} | "
-            f"{example.title}"
-        )
-        print("-" * 80)
-
-        try:
-            strategy_output = strategy.run(
-                example
-            )
-
-            # 1. 코드 추출 단계
-            try:
-                extracted_code = extractor.extract(
-                    strategy_output.raw_output
-                )
-
-            except CodeExtractionError as error:
-                extracted_code = ""
-                evaluation = build_failure_evaluation(
-                    status="EXTRACTION_ERROR",
-                    error=error,
-                )
-
-            # 2. 코드 추출에 성공한 경우 평가 단계
-            else:
-                try:
-                    evaluation = evaluator.evaluate(
-                        example=example,
-                        code=extracted_code,
-                    )
-
-                except ValueError as error:
-                    error_message = str(error)
-
-                    if "Unsupported test type" in error_message:
-                        evaluation = build_failure_evaluation(
-                            status="UNSUPPORTED_TEST_TYPE",
-                            error=error,
-                        )
-                    else:
-                        evaluation = build_failure_evaluation(
-                            status="EVALUATION_ERROR",
-                            error=error,
-                        )
-
-                except Exception as error:
-                    evaluation = build_failure_evaluation(
-                        status="EVALUATION_ERROR",
-                        error=error,
-                    )
-
-            record = build_experiment_record(
-                example=example,
-                strategy_output=strategy_output,
-                extracted_code=extracted_code,
-                evaluation=evaluation,
-                dataset_name=dataset_config["name"],
-                model_name=model_config["name_or_path"],
-                seed=seed,
-            )
-        
-            logger.append(record.to_dict())
-
-            processed_count += 1
-
-            if evaluation.passed:
-                pass_count += 1
-
-            print(
-                f"Status     : "
-                f"{evaluation.status}"
-            )
-            print(
-                f"Tests      : "
-                f"{evaluation.passed_tests}/"
-                f"{evaluation.total_tests}"
-            )
-            print(
-                f"Gen tokens : "
-                f"{strategy_output.completion_tokens}"
-            )
-            print(
-                f"Gen time   : "
-                f"{strategy_output.generation_time:.2f}s"
-            )
-            print(
-                f"Exec time  : "
-                f"{evaluation.execution_time:.4f}s"
-            )
-
-            if evaluation.error_message:
-                print(
-                    f"Error      : "
-                    f"{evaluation.error_message[:500]}"
-                )
-
-        except Exception as error:
-            print(
-                f"[ERROR] {example.problem_id}: "
-                f"{error}"
-            )
-            traceback.print_exc()
-            raise
+    runner.run(examples)
 
     print()
-    print("=" * 80)
-    print("Experiment Summary")
-    print("=" * 80)
-    print(f"Selected problems : {total_selected}")
-    print(f"Processed         : {processed_count}")
-    print(f"Skipped           : {skipped_count}")
-    print(f"Passed            : {pass_count}")
-
-    if processed_count > 0:
-        pass_rate = (
-            pass_count / processed_count
-        )
-        print(
-            f"Current pass rate : "
-            f"{pass_rate:.4f}"
-        )
-
-    print(f"Output            : {output_path}")
-    print()
-    print("[DONE] Direct experiment completed.")
+    print(
+        "[DONE] Direct experiment completed."
+    )
 
 
 if __name__ == "__main__":

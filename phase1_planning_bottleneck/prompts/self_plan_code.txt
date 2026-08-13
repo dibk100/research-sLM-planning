@@ -9,13 +9,10 @@ Requirements:
 - Write output to standard output.
 - Use an efficient algorithm.
 
-Problem Title:
-{title}
-
 Problem:
 {problem}
 
+{starter_code_section}
+
 Implementation Plan:
 {plan}
-
-{starter_code_section}

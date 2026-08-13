@@ -1,16 +1,14 @@
 experiment:
-  name: phase1_direct
+  name: phase1_qwen25Coder3b_direct
   seed: 42
 
 dataset:
-  name: livecodebench_v6
-  split: test
-  release_version: release_v6
-  test_type: stdin
-  limit: 500                  # num_rows: 1055
+  name: livecodebench_v6_stdin
+  path: /mnt/hdd/project_sLM_planning/data/livecodebench_v6/stdin
+  limit: 300
 
 model:
-  name_or_path: Qwen/Qwen2.5-3B-Instruct
+  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
   dtype: bfloat16
   device_map: auto
   trust_remote_code: true
@@ -21,17 +19,17 @@ generation:
   top_p: 1.0
 
 strategy:
-  name: direct
-  prompt_path: prompts/direct.txt
+  prompt_path: prompt_templates/direct.txt
   system_prompt: >
     You are an expert competitive programming assistant.
     Generate correct and efficient Python solutions.
 
 evaluation:
-  timeout_seconds: 5.0
+  timeout_seconds: 6
   include_public_tests: true
   include_private_tests: true
+  debug: false
 
 output:
-  path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/direct_500_stdin/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/phase1/qwen25Coder3b/livecodebench_v6_stdin/direct/results.jsonl
   resume: true
