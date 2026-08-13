@@ -1,0 +1,19 @@
+Solve the following competitive programming problem in Python using the provided plan.
+
+Requirements:
+- Follow the provided plan carefully.
+- Return only the final Python code.
+- Do not include explanations.
+- Do not include Markdown code fences.
+- Read input from standard input.
+- Write output to standard output.
+- Use an efficient algorithm.
+
+Problem:
+{problem}
+
+{starter_code_section}
+
+Implementation Plan:
+{plan}
+
