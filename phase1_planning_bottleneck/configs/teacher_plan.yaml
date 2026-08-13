@@ -35,5 +35,5 @@ evaluation:
   debug: false
 
 output:
-  path: /mnt/hdd/project_sLM_planning/phase1/qwen25Coder3b/livecodebench_v6_stdin/teacher_plan/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/phase1/qwen25Coder3b_re/livecodebench_v6_stdin/teacher_plan/results.jsonl
   resume: true
