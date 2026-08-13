@@ -68,7 +68,7 @@ class DirectStrategy:
 
     def _validate_prompt_template(self) -> None:
         required_placeholders = {
-            "{title}",
+            #"{title}",
             "{problem}",
             "{starter_code_section}",
         }
@@ -98,7 +98,7 @@ class DirectStrategy:
             )
 
         return self.prompt_template.format(
-            title=example.title,
+            # title=example.title,
             problem=example.problem,
             starter_code_section=starter_code_section,
         ).strip()

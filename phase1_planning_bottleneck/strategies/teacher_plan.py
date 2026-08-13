@@ -78,7 +78,7 @@ class TeacherPlanStrategy:
 
     def _validate_template(self) -> None:
         required_placeholders = {
-            "{title}",
+            # "{title}",
             "{problem}",
             "{teacher_plan}",
             "{starter_code_section}",
@@ -135,7 +135,7 @@ class TeacherPlanStrategy:
         )
 
         return self.code_prompt_template.format(
-            title=example.title,
+            # title=example.title,
             problem=example.problem,
             teacher_plan=teacher_plan,
             starter_code_section=(

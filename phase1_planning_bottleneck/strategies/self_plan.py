@@ -94,13 +94,13 @@ class SelfPlanningStrategy:
 
     def _validate_templates(self) -> None:
         plan_placeholders = {
-            "{title}",
+            # "{title}",
             "{problem}",
             "{starter_code_section}",
         }
 
         code_placeholders = {
-            "{title}",
+            # "{title}",
             "{problem}",
             "{plan}",
             "{starter_code_section}",
@@ -155,7 +155,7 @@ class SelfPlanningStrategy:
         )
 
         return self.plan_prompt_template.format(
-            title=example.title,
+            # title=example.title,
             problem=example.problem,
             starter_code_section=(
                 starter_code_section
@@ -187,7 +187,7 @@ class SelfPlanningStrategy:
         )
 
         return self.code_prompt_template.format(
-            title=example.title,
+            # title=example.title,
             problem=example.problem,
             plan=plan,
             starter_code_section=(
