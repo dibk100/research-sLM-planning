@@ -5,9 +5,6 @@ __pycache__/
 
 # 커스텀
 *.jsonl
-*.txt
-*.csv
-
 
 # C extensions
 *.so
