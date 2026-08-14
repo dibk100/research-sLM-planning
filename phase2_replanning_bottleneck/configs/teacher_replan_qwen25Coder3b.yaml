@@ -7,6 +7,11 @@ model:
   dtype: bfloat16
   device_map: auto
 
+generation:
+  code_max_new_tokens: 1024
+  temperature: 0.0
+  top_p: 1.0
+
 input:
   phase1_results_path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/direct_500_stdin/results.jsonl
 
@@ -27,14 +32,9 @@ strategy:
   require_verified: true
   system_prompt: null
 
-generation:
-  code_max_new_tokens: 1024
-  temperature: 0.0
-  top_p: 1.0
-
 evaluation:
   timeout_seconds: 5.0
 
 output:
-  path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/phase2_teacher_replan_500/results.jsonl
+  path: /home/dibaeck/workspace/project_sLM_planning/phase2_replanning_bottleneck/log/teacher_replan/
   resume: true

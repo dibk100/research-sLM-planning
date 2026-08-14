@@ -1,0 +1,33 @@
+You previously attempted to solve the following competitive programming problem.
+
+Problem:
+{problem}
+
+The following code was generated for the problem, but it failed during testing.
+
+Failed Code:
+{extracted_code}
+
+The code failed on the following test case.
+
+Test Input given to the generated program:
+{input_text}
+
+Expected Output for the test input:
+{expected_output}
+
+Actual Output produced by the generated program:
+{actual_output}
+
+Evaluator Message:
+{stderr}
+
+Revise the failed code using the test feedback above and solve the problem correctly.
+
+Requirements:
+- Return only the corrected Python code.
+- Do not include explanations.
+- Do not include Markdown code fences.
+- Read input from standard input.
+- Write output to standard output.
+- Use an efficient algorithm.

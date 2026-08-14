@@ -1,0 +1,38 @@
+You previously attempted to solve the following competitive programming problem.
+
+Problem:
+{problem}
+
+The following code was generated for the problem, but it failed during testing.
+
+Failed Code:
+{extracted_code}
+
+The code failed on the following test case.
+
+Test Input given to the generated program:
+{input_text}
+
+Expected Output for the test input:
+{expected_output}
+
+Actual Output produced by the generated program:
+{actual_output}
+
+Evaluator Message:
+{stderr}
+
+Analyze why the previous solution failed and produce a revised implementation plan for solving the problem correctly.
+
+Requirements:
+- Use at most 6 bullet points.
+- Do not repeat or summarize the problem statement.
+- Identify the key mistake in the failed solution.
+- State the corrected core algorithm and exact decision condition.
+- State the key invariant or correctness reasoning.
+- Mention only the necessary data structures.
+- Mention important edge cases.
+- State time and space complexity in one bullet.
+- Do not write code or pseudocode.
+- Do not include headings, introductions, or conclusions.
+- Return only the bullet-point plan.

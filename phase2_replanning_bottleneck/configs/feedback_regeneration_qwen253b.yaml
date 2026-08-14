@@ -1,11 +1,18 @@
 experiment:
-  name: phase2_feedback_regeneration_500
+  name: phase2_qwen253b_feedback
   seed: 42
 
 model:
   name_or_path: Qwen/Qwen2.5-3B-Instruct
   dtype: bfloat16
   device_map: auto
+  trust_remote_code : true
+
+
+generation:
+  code_max_new_tokens: 1024
+  temperature: 0.0
+  top_p: 1.0
 
 input:
   phase1_results_path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/direct_500_stdin/results.jsonl
