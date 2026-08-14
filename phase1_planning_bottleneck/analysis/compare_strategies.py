@@ -3,9 +3,9 @@
 
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase1_planning_bottleneck/analysis/compare_strategies.py \
-  --model-dir qwen25Coder3b \
+  --model-dir phi3 \
   --expected-problems 300 \
-  --output-dir phase1_planning_bottleneck/archive/comparison_qwen25Coder3b_300
+  --output-dir phase1_planning_bottleneck/archive/comparison_phi_300
 
 output :
 archive폴더에 기록

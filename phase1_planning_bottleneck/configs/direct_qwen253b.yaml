@@ -1,0 +1,33 @@
+experiment:
+  name: phase1_qwen253b_direct
+  seed: 42
+
+dataset:
+  name: livecodebench_v6_stdin
+  path: /mnt/hdd/project_sLM_planning/data/livecodebench_v6/stdin
+  limit: 300
+
+model:
+  name_or_path: Qwen/Qwen2.5-3B-Instruct
+  dtype: bfloat16
+  device_map: auto
+  trust_remote_code: true
+
+generation:
+  max_new_tokens: 1024
+  temperature: 0.0
+  top_p: 1.0
+
+strategy:
+  prompt_path: prompt_templates/direct.txt
+  system_prompt: null
+
+evaluation:
+  timeout_seconds: 6
+  include_public_tests: true
+  include_private_tests: true
+  debug: false
+
+output:
+  path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen253b/direct/results.jsonl
+  resume: true

@@ -1,11 +1,12 @@
 experiment:
-  name: phase1_qwen25Coder3b_self_plan
+  name: phase1_qwen25Coder3b_teacher_plan
   seed: 42
 
 dataset:
   name: livecodebench_v6_stdin
   path: /mnt/hdd/project_sLM_planning/data/livecodebench_v6/stdin
   limit: 300
+
 
 model:
   name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
@@ -14,18 +15,15 @@ model:
   trust_remote_code: true
 
 generation:
-  plan_max_new_tokens: 384        # 384
   code_max_new_tokens: 1024
   temperature: 0.0
   top_p: 1.0
 
 strategy:
-  name: self_plan
-  plan_prompt_path: prompt_templates/self_plan_plan.txt
+  plan_path: /mnt/hdd/project_sLM_planning/data/teacher_plans/livecodebench_v6/opus5_v1/teacher_plans_300.jsonl
   code_prompt_path: prompt_templates/self_plan_code.txt
-  system_prompt: >
-    You are an expert competitive programming assistant.
-    Analyze problems carefully and generate correct and efficient Python solutions.
+  require_verified: false
+  system_prompt: null
 
 evaluation:
   timeout_seconds: 6
@@ -34,5 +32,5 @@ evaluation:
   debug: false
 
 output:
-  path: /mnt/hdd/project_sLM_planning/phase1/qwen25Coder3b_re/livecodebench_v6_stdin/self_plan/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen25Coder3b/teacher_plan/results.jsonl
   resume: true
