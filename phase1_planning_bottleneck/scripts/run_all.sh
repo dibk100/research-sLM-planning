@@ -9,7 +9,7 @@
 #   --config-name qwen25Coder3b
 #
 # ./phase1_planning_bottleneck/scripts/run_all.sh \
-#   direct self_plan teacher_plan \
+#   teacher_plan \
 #   --config-name qwen253b
 #
 # ./phase1_planning_bottleneck/scripts/run_all.sh \

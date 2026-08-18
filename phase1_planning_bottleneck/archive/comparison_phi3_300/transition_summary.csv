@@ -1,0 +1,13 @@
+comparison,transition,count
+Direct_TO_Self-Plan,FAIL_TO_PASS,16
+Direct_TO_Self-Plan,PASS_TO_PASS,32
+Direct_TO_Self-Plan,PASS_TO_FAIL,14
+Direct_TO_Self-Plan,FAIL_TO_FAIL,238
+Direct_TO_Teacher-Plan,FAIL_TO_PASS,57
+Direct_TO_Teacher-Plan,PASS_TO_PASS,28
+Direct_TO_Teacher-Plan,PASS_TO_FAIL,18
+Direct_TO_Teacher-Plan,FAIL_TO_FAIL,197
+Self-Plan_TO_Teacher-Plan,FAIL_TO_PASS,50
+Self-Plan_TO_Teacher-Plan,PASS_TO_PASS,35
+Self-Plan_TO_Teacher-Plan,PASS_TO_FAIL,13
+Self-Plan_TO_Teacher-Plan,FAIL_TO_FAIL,202
