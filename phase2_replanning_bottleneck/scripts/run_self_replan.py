@@ -94,7 +94,11 @@ def main() -> None:
     output_config = config[
         "output"
     ]
-
+    
+    feedback_config = config.get(
+        "feedback",
+        {},
+    )
     # ------------------------------------------------------------------
     # 2. Seed / limit
     # ------------------------------------------------------------------
@@ -231,6 +235,9 @@ def main() -> None:
                 1.0,
             )
         ),
+        max_input_chars=feedback_config.get(
+            "max_input_chars"
+        ),
     )
 
     # ------------------------------------------------------------------
@@ -274,23 +281,13 @@ def main() -> None:
     # 9. Output
     # ------------------------------------------------------------------
 
-    output_dir = Path(
-        output_config[
-            "dir"
-        ]
+    output_path = Path(
+        output_config["path"]
     )
 
-    output_dir.mkdir(
+    output_path.parent.mkdir(
         parents=True,
         exist_ok=True,
-    )
-
-    output_path = (
-        output_dir
-        / output_config.get(
-            "result_file",
-            "results.jsonl",
-        )
     )
 
     resume = (

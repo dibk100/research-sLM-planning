@@ -4,7 +4,7 @@ experiment:
 dataset:
   name: phase1_qwen25Coder3b_direct
   path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen25Coder3b/direct/results.jsonl
-  limit: 1
+  limit: 300
 
 
 teacher:
@@ -21,5 +21,7 @@ prompt:
   path: prompt_templates/self_replan_plan.txt
 
 output:
-  dir: /home/dibaeck/workspace/project_sLM_planning/phase2_replanning_bottleneck/log/llm/results.jsonl
+  dir: /mnt/hdd/project_sLM_planning/data/teacher_replans/qwen25Coder3b/opus5_v1
   resume: true
+
+  replan_file: /mnt/hdd/project_sLM_planning/data/teacher_replans/qwen25Coder3b/opus5_v1/teacher_replans.jsonl

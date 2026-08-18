@@ -7,12 +7,12 @@
 4. teacher_plan이 비어 있지 않음
 
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
-python phase1_planning_bottleneck/teacher_plan_generation/validate_teacher_plans.py \
-  --config phase1_planning_bottleneck/configs/teacher_plan_make.yaml
+python phase2_replanning_bottleneck/teacher_replan_generation/validate_teacher_replans.py \
+  --config phase2_replanning_bottleneck/configs/teacher_replan_make.yaml
 
 """
-
-# phase1_planning_bottleneck/teacher_plan_generation/validate_teacher_plans.py
+# phase2_replanning_bottleneck/teacher_replan_generation/
+# validate_teacher_replans.py
 
 from __future__ import annotations
 
@@ -22,36 +22,35 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from src.datasets.dataset_loader import load_dataset
+from src.datasets.phase1_failure_loader import (
+    load_phase1_failures,
+)
 from src.utils.config import load_config
 
 
 REQUIRED_FIELDS = {
     "problem_id",
-    "teacher_plan",
+    "teacher_replan",
     "teacher_model",
-    "plan_version",
+    "replan_version",
     "verified",
 }
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate generated teacher-plan dataset."
+        description=(
+            "Validate a Teacher-Replan JSONL dataset "
+            "against Phase 1 Direct refinable failures."
+        )
     )
 
     parser.add_argument(
         "--config",
         required=True,
-        help="Path to teacher-plan generation YAML config.",
-    )
-
-    parser.add_argument(
-        "--plan-path",
-        default=None,
         help=(
-            "Optional override for teacher plan JSONL path. "
-            "If omitted, use the path derived from config."
+            "Path to teacher-replan validation "
+            "YAML config."
         ),
     )
 
@@ -71,22 +70,22 @@ def load_jsonl(
     with path.open(
         "r",
         encoding="utf-8",
-    ) as f:
+    ) as file:
         for line_number, line in enumerate(
-            f,
+            file,
             start=1,
         ):
-            line = line.strip()
-
-            if not line:
+            if not line.strip():
                 continue
 
             try:
-                record = json.loads(line)
+                record = json.loads(
+                    line
+                )
             except json.JSONDecodeError as error:
                 raise ValueError(
-                    f"Invalid JSON at line {line_number}: "
-                    f"{error}"
+                    "Invalid JSON at "
+                    f"{path}:{line_number}"
                 ) from error
 
             if not isinstance(
@@ -94,41 +93,142 @@ def load_jsonl(
                 dict,
             ):
                 raise TypeError(
-                    f"Line {line_number} must contain "
-                    "a JSON object."
+                    "JSONL record must be an object "
+                    f"at {path}:{line_number}"
                 )
 
-            records.append(record)
+            records.append(
+                record
+            )
 
     return records
 
 
-def main() -> None:
-    args = parse_args()
-    config = load_config(args.config)
+def validate_schema(
+    records: list[dict[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
 
-    dataset_config = config["dataset"]
-    teacher_config = config["teacher"]
-    output_config = config["output"]
-
-    # --------------------------------------------------------------
-    # Load reference problems
-    # --------------------------------------------------------------
-
-    problems = load_dataset(
-        dataset_name=dataset_config["name"],
-        data_path=dataset_config["path"],
-        limit=dataset_config.get("limit"),
-    )
-
-    if not problems:
-        raise ValueError(
-            "No reference problems were loaded."
+    for index, record in enumerate(
+        records,
+        start=1,
+    ):
+        missing = (
+            REQUIRED_FIELDS
+            - set(record)
         )
 
+        if missing:
+            errors.append(
+                f"row={index}: "
+                f"missing fields={sorted(missing)}"
+            )
+            continue
+
+        problem_id = str(
+            record.get(
+                "problem_id",
+                "",
+            )
+        ).strip()
+
+        teacher_replan = str(
+            record.get(
+                "teacher_replan",
+                "",
+            )
+        ).strip()
+
+        teacher_model = str(
+            record.get(
+                "teacher_model",
+                "",
+            )
+        ).strip()
+
+        replan_version = str(
+            record.get(
+                "replan_version",
+                "",
+            )
+        ).strip()
+
+        verified = record.get(
+            "verified"
+        )
+
+        if not problem_id:
+            errors.append(
+                f"row={index}: empty problem_id"
+            )
+
+        if not teacher_replan:
+            errors.append(
+                f"row={index}: empty teacher_replan"
+            )
+
+        if not teacher_model:
+            errors.append(
+                f"row={index}: empty teacher_model"
+            )
+
+        if not replan_version:
+            errors.append(
+                f"row={index}: empty replan_version"
+            )
+
+        if not isinstance(
+            verified,
+            bool,
+        ):
+            errors.append(
+                f"row={index}, problem_id={problem_id}: "
+                "verified must be bool"
+            )
+
+    return errors
+
+
+def main() -> None:
+    args = parse_args()
+    config = load_config(
+        args.config
+    )
+
+    dataset_config = config[
+        "dataset"
+    ]
+
+    teacher_config = config[
+        "teacher"
+    ]
+
+    output_config = config[
+        "output"
+    ]
+
+    # --------------------------------------------------------------
+    # Expected Phase 1 failure set
+    # --------------------------------------------------------------
+
+    phase1_result_path = Path(
+        dataset_config[
+            "path"
+        ]
+    )
+
+    expected_failures = (
+        load_phase1_failures(
+            result_path=phase1_result_path,
+            limit=dataset_config.get(
+                "limit"
+            ),
+        )
+    )
+
     expected_ids = [
-        problem.problem_id
-        for problem in problems
+        failure.problem_id
+        for failure in expected_failures
     ]
 
     expected_id_set = set(
@@ -136,129 +236,36 @@ def main() -> None:
     )
 
     # --------------------------------------------------------------
-    # Resolve teacher-plan path
+    # Teacher-Replan output
     # --------------------------------------------------------------
 
-    if args.plan_path is not None:
-        plan_path = Path(
-            args.plan_path
-        )
-
-    else:
-        output_dir = Path(
-            output_config["dir"]
-        )
-
-        expected_count = len(
-            expected_ids
-        )
-
-        plan_path = (
-            output_dir
-            / f"teacher_plans_{expected_count}.jsonl"
-        )
-
-    # --------------------------------------------------------------
-    # Load teacher plans
-    # --------------------------------------------------------------
+    replan_path = Path(
+        output_config[
+            "replan_file"
+        ]
+    )
 
     records = load_jsonl(
-        plan_path
+        replan_path
+    )
+
+    actual_ids = [
+        str(
+            record.get(
+                "problem_id",
+                "",
+            )
+        ).strip()
+        for record in records
+    ]
+
+    actual_id_set = set(
+        actual_ids
     )
 
     # --------------------------------------------------------------
-    # Basic record validation
+    # Validation
     # --------------------------------------------------------------
-
-    schema_errors: list[str] = []
-    empty_plan_ids: list[str] = []
-    invalid_problem_ids: list[str] = []
-
-    actual_ids: list[str] = []
-
-    for index, record in enumerate(
-        records,
-        start=1,
-    ):
-        missing_fields = (
-            REQUIRED_FIELDS
-            - set(record)
-        )
-
-        if missing_fields:
-            schema_errors.append(
-                f"record {index}: missing fields "
-                f"{sorted(missing_fields)}"
-            )
-
-        problem_id = record.get(
-            "problem_id"
-        )
-
-        if not isinstance(
-            problem_id,
-            str,
-        ) or not problem_id.strip():
-            invalid_problem_ids.append(
-                f"record {index}"
-            )
-            continue
-
-        actual_ids.append(
-            problem_id
-        )
-
-        teacher_plan = record.get(
-            "teacher_plan"
-        )
-
-        if (
-            not isinstance(
-                teacher_plan,
-                str,
-            )
-            or not teacher_plan.strip()
-        ):
-            empty_plan_ids.append(
-                problem_id
-            )
-
-        if (
-            "plan_version" in record
-            and record["plan_version"]
-            != teacher_config.get(
-                "plan_version",
-                "v1",
-            )
-        ):
-            schema_errors.append(
-                f"{problem_id}: unexpected "
-                f"plan_version="
-                f"{record['plan_version']!r}"
-            )
-
-        if (
-            "verified" in record
-            and not isinstance(
-                record["verified"],
-                bool,
-            )
-        ):
-            schema_errors.append(
-                f"{problem_id}: verified must be bool"
-            )
-
-    # --------------------------------------------------------------
-    # Count / duplicate validation
-    # --------------------------------------------------------------
-
-    actual_count = len(
-        records
-    )
-
-    expected_count = len(
-        expected_ids
-    )
 
     id_counts = Counter(
         actual_ids
@@ -268,11 +275,7 @@ def main() -> None:
         problem_id
         for problem_id, count
         in id_counts.items()
-        if count > 1
-    )
-
-    actual_id_set = set(
-        actual_ids
+        if problem_id and count > 1
     )
 
     missing_ids = sorted(
@@ -285,172 +288,273 @@ def main() -> None:
         - expected_id_set
     )
 
-    # --------------------------------------------------------------
-    # Order validation
-    # --------------------------------------------------------------
+    empty_replans = [
+        str(
+            record.get(
+                "problem_id",
+                "",
+            )
+        ).strip()
+        for record in records
+        if not str(
+            record.get(
+                "teacher_replan",
+                "",
+            )
+        ).strip()
+    ]
+
+    schema_errors = (
+        validate_schema(
+            records
+        )
+    )
 
     order_matches = (
-        actual_ids == expected_ids
+        actual_ids
+        == expected_ids
     )
+
+    expected_teacher_model = (
+        teacher_config.get(
+            "model"
+        )
+    )
+
+    expected_replan_version = (
+        teacher_config.get(
+            "replan_version",
+            "v1",
+        )
+    )
+
+    teacher_model_mismatches = []
+
+    replan_version_mismatches = []
+
+    for record in records:
+        problem_id = str(
+            record.get(
+                "problem_id",
+                "",
+            )
+        ).strip()
+
+        teacher_model = str(
+            record.get(
+                "teacher_model",
+                "",
+            )
+        ).strip()
+
+        replan_version = str(
+            record.get(
+                "replan_version",
+                "",
+            )
+        ).strip()
+
+        if (
+            expected_teacher_model
+            and teacher_model
+            != expected_teacher_model
+        ):
+            teacher_model_mismatches.append(
+                problem_id
+            )
+
+        if (
+            expected_replan_version
+            and replan_version
+            != expected_replan_version
+        ):
+            replan_version_mismatches.append(
+                problem_id
+            )
 
     # --------------------------------------------------------------
     # Summary
     # --------------------------------------------------------------
 
     print("=" * 80)
-    print("Teacher Plan Validation")
+    print(
+        "Teacher-Replan Validation"
+    )
     print("=" * 80)
 
     print(
-        f"Dataset          : "
-        f"{dataset_config['name']}"
+        f"Phase1 source     : "
+        f"{phase1_result_path}"
     )
+
     print(
-        f"Plan file        : "
-        f"{plan_path}"
+        f"Replan file       : "
+        f"{replan_path}"
     )
+
     print(
-        f"Expected records : "
-        f"{expected_count}"
+        f"Expected records  : "
+        f"{len(expected_ids)}"
     )
+
     print(
-        f"Actual records   : "
-        f"{actual_count}"
+        f"Actual records    : "
+        f"{len(records)}"
     )
+
     print(
-        f"Unique IDs       : "
+        f"Unique IDs        : "
         f"{len(actual_id_set)}"
     )
+
     print(
-        f"Missing IDs      : "
+        f"Missing IDs       : "
         f"{len(missing_ids)}"
     )
+
     print(
-        f"Extra IDs        : "
+        f"Extra IDs         : "
         f"{len(extra_ids)}"
     )
+
     print(
-        f"Duplicate IDs    : "
+        f"Duplicate IDs     : "
         f"{len(duplicate_ids)}"
     )
+
     print(
-        f"Empty plans      : "
-        f"{len(empty_plan_ids)}"
+        f"Empty replans     : "
+        f"{len(empty_replans)}"
     )
+
     print(
-        f"Schema errors    : "
+        f"Schema errors     : "
         f"{len(schema_errors)}"
     )
+
     print(
-        f"Order matches    : "
+        f"Teacher mismatch  : "
+        f"{len(teacher_model_mismatches)}"
+    )
+
+    print(
+        f"Version mismatch  : "
+        f"{len(replan_version_mismatches)}"
+    )
+
+    print(
+        f"Order matches     : "
         f"{order_matches}"
     )
 
     # --------------------------------------------------------------
-    # Detailed failures
+    # Details
     # --------------------------------------------------------------
 
     if missing_ids:
         print()
-        print("Missing problem_ids:")
-
-        for problem_id in missing_ids:
+        print(
+            "[Missing IDs]"
+        )
+        for problem_id in missing_ids[:20]:
             print(
-                f"  - {problem_id}"
+                f"- {problem_id}"
             )
 
     if extra_ids:
         print()
-        print("Extra problem_ids:")
-
-        for problem_id in extra_ids:
+        print(
+            "[Extra IDs]"
+        )
+        for problem_id in extra_ids[:20]:
             print(
-                f"  - {problem_id}"
+                f"- {problem_id}"
             )
 
     if duplicate_ids:
         print()
-        print("Duplicate problem_ids:")
-
-        for problem_id in duplicate_ids:
+        print(
+            "[Duplicate IDs]"
+        )
+        for problem_id in duplicate_ids[:20]:
             print(
-                f"  - {problem_id} "
-                f"(count={id_counts[problem_id]})"
+                f"- {problem_id}"
             )
 
-    if empty_plan_ids:
+    if empty_replans:
         print()
-        print("Empty teacher plans:")
-
-        for problem_id in empty_plan_ids:
+        print(
+            "[Empty Replans]"
+        )
+        for problem_id in empty_replans[:20]:
             print(
-                f"  - {problem_id}"
-            )
-
-    if invalid_problem_ids:
-        print()
-        print("Invalid problem_id records:")
-
-        for record_info in (
-            invalid_problem_ids
-        ):
-            print(
-                f"  - {record_info}"
+                f"- {problem_id}"
             )
 
     if schema_errors:
         print()
-        print("Schema errors:")
-
-        for error in schema_errors:
+        print(
+            "[Schema Errors]"
+        )
+        for error in schema_errors[:20]:
             print(
-                f"  - {error}"
+                f"- {error}"
+            )
+
+    if teacher_model_mismatches:
+        print()
+        print(
+            "[Teacher Model Mismatches]"
+        )
+        for problem_id in (
+            teacher_model_mismatches[:20]
+        ):
+            print(
+                f"- {problem_id}"
+            )
+
+    if replan_version_mismatches:
+        print()
+        print(
+            "[Replan Version Mismatches]"
+        )
+        for problem_id in (
+            replan_version_mismatches[:20]
+        ):
+            print(
+                f"- {problem_id}"
             )
 
     # --------------------------------------------------------------
     # Final decision
     # --------------------------------------------------------------
 
-    validation_failed = any(
-        [
-            actual_count
-            != expected_count,
-
-            bool(
-                missing_ids
-            ),
-
-            bool(
-                extra_ids
-            ),
-
-            bool(
-                duplicate_ids
-            ),
-
-            bool(
-                empty_plan_ids
-            ),
-
-            bool(
-                invalid_problem_ids
-            ),
-
-            bool(
-                schema_errors
-            ),
-        ]
+    passed = (
+        len(records)
+        == len(expected_ids)
+        and len(actual_id_set)
+        == len(expected_id_set)
+        and not missing_ids
+        and not extra_ids
+        and not duplicate_ids
+        and not empty_replans
+        and not schema_errors
+        and not teacher_model_mismatches
+        and not replan_version_mismatches
     )
-
-    if validation_failed:
-        raise ValueError(
-            "Teacher plan validation failed."
-        )
 
     print()
-    print(
-        "[PASS] Teacher plan dataset is valid."
-    )
+
+    if passed:
+        print(
+            "[PASS] Teacher-Replan dataset is valid."
+        )
+    else:
+        print(
+            "[FAIL] Teacher-Replan dataset validation failed."
+        )
+
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

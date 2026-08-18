@@ -95,6 +95,11 @@ def main() -> None:
         "output"
     ]
 
+
+    feedback_config = config.get(
+        "feedback",
+        {},
+    )
     # ------------------------------------------------------------------
     # 2. Resolve seed / limit
     # ------------------------------------------------------------------
@@ -206,7 +211,7 @@ def main() -> None:
         ),
         max_new_tokens=int(
             generation_config.get(
-                "code_max_new_tokens",
+                "max_new_tokens",
                 1024,
             )
         ),
@@ -221,6 +226,9 @@ def main() -> None:
                 "top_p",
                 1.0,
             )
+        ),
+        max_input_chars=feedback_config.get(
+            "max_input_chars"
         ),
     )
 

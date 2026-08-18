@@ -1,40 +1,49 @@
 experiment:
-  name: phase2_teacher_replan_500
+  name: phase2_qwen25Coder3b_teacher_replan
   seed: 42
 
+
+dataset:
+  name: livecodebench_v6_stdin
+  path: /mnt/hdd/project_sLM_planning/data/livecodebench_v6/stdin
+  limit: 300
+
+
 model:
-  name_or_path: Qwen/Qwen2.5-3B-Instruct
+  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
   dtype: bfloat16
   device_map: auto
+  trust_remote_code: true
+
 
 generation:
   code_max_new_tokens: 1024
   temperature: 0.0
   top_p: 1.0
 
-input:
-  phase1_results_path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/direct_500_stdin/results.jsonl
 
-  # 우선 sanity/pilot
-  limit: 500
+phase1:
+  direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen25Coder3b/direct/results.jsonl
 
-  difficulties: null
-  include_statuses: null
-  max_feedback_chars: 2000
 
 strategy:
   name: teacher_replan
 
-  replan_path: /mnt/hdd/project_sLM_planning/data/teacher_plans/livecodebench_v6_teacher_replans_opus5_v1_500.jsonl
+  replan_path: /mnt/hdd/project_sLM_planning/data/teacher_replans/qwen25Coder3b/opus5_v1/teacher_replans.jsonl
 
-  code_prompt_path: prompts/teacher_replan_code.txt
+  code_prompt_path: prompt_templates/self_plan_code.txt
 
-  require_verified: true
+  require_verified: false
   system_prompt: null
 
+
 evaluation:
-  timeout_seconds: 5.0
+  timeout_seconds: 6
+  debug: false
+  include_public_tests: true
+  include_private_tests: true
+
 
 output:
-  path: /home/dibaeck/workspace/project_sLM_planning/phase2_replanning_bottleneck/log/teacher_replan/
+  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen25Coder3b/teacher_replan/results.jsonl
   resume: true

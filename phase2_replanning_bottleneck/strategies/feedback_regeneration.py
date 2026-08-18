@@ -13,6 +13,9 @@ from src.schemas import (
     StrategyOutput,
 )
 
+from src.utils.feedback import (
+    truncate_input_text,
+)
 
 class FeedbackRegenerationStrategy:
     """
@@ -38,6 +41,7 @@ class FeedbackRegenerationStrategy:
         max_new_tokens: int = 1024,
         temperature: float = 0.0,
         top_p: float = 1.0,
+        max_input_chars: int | None = None,
     ) -> None:
         self.generator = generator
 
@@ -49,8 +53,18 @@ class FeedbackRegenerationStrategy:
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.top_p = top_p
+        self.max_input_chars = max_input_chars
 
         self._validate_config()
+        
+        if (
+            self.max_input_chars is not None
+            and self.max_input_chars <= 0
+        ):
+            raise ValueError(
+                "max_input_chars must be "
+                "greater than 0."
+            )
 
         self.prompt_template = (
             self.prompt_path.read_text(
@@ -115,14 +129,17 @@ class FeedbackRegenerationStrategy:
         self,
         failure: Phase1FailureRecord,
     ) -> str:
+        input_text = truncate_input_text(
+            failure.input_text,
+            self.max_input_chars,
+        )
+
         return self.prompt_template.format(
             problem=failure.problem,
             extracted_code=(
                 failure.extracted_code
             ),
-            input_text=(
-                failure.input_text
-            ),
+            input_text=input_text,
             expected_output=(
                 failure.expected_output
             ),
