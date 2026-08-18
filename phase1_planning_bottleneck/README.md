@@ -109,11 +109,18 @@ LiveCodeBench의 기본 평가 방식은 하나의 test case에서 실패가 발
 
 ## 3. Overall Results
 
-| Strategy     | Solved Problems¹ |            Pass Rate² | Mean Test Pass Ratio³ |
-| ------------ | ---------------: | --------------------: | --------------------: |
-| Direct       |         65 / 300 |                21.67% |                37.19% |
-| Self-Plan    |         54 / 300 |  18.00% **(−3.67%p)** |  33.10% **(−4.09%p)** |
-| Teacher-Plan |     **87 / 300** | **29.00% (+11.00%p)** |  **40.95% (+7.85%p)** |
+| Model                     | Strategy     | Solved Problems¹ | Pass Rate² | Mean Test Pass Ratio³ |
+| ------------------------- | ------------ | ---------------: | ---------: | --------------------: |
+| Qwen2.5-Coder-3B-Instruct | Direct       |         69 / 300 |     23.00% |                 0.387 |
+|                           | Self-Plan    |         49 / 300 |     16.33% |                 0.328 |
+|                           | Teacher-Plan |         85 / 300 |     28.33% |                 0.416 |
+| Qwen2.5-3B-Instruct       | Direct       |         39 / 300 |     13.00% |                 0.305 |
+|                           | Self-Plan    |         32 / 300 |     10.67% |                 0.274 |
+|                           | Teacher-Plan |         67 / 300 |     22.33% |                 0.342 |
+| Phi-3-mini-Instruct       | Direct       |         46 / 300 |     15.33% |                 0.327 |
+|                           | Self-Plan    |         48 / 300 |     16.00% |                 0.331 |
+|                           | Teacher-Plan |         85 / 300 |     28.33% |                 0.407 |
+
 
 
 - Solved Problems¹ : 모든 unit test를 통과한 문제 수 / 전체 문제 수.
@@ -122,7 +129,19 @@ LiveCodeBench의 기본 평가 방식은 하나의 test case에서 실패가 발
 
 - Mean Test Pass Ratio³ : 각 문제별 unit tests를 통과한 test case의 비율을 계산한 후 전체 문제(300개)에 대해 평균한 값. 
 
+
+### planning gap table
+
+| Model                     | Direct | Self-Plan | Teacher-Plan | Self − Direct | Teacher − Direct | **Teacher − Self** |
+| ------------------------- | -----: | --------: | -----------: | ------------: | ---------------: | -----------------: |
+| Qwen2.5-Coder-3B-Instruct |  23.0% |     16.3% |    **28.3%** |        −6.7%p |           +5.3%p |        **+12.0%p** |
+| Qwen2.5-3B-Instruct       |  13.0% |     10.7% |    **22.3%** |        −2.3%p |           +9.3%p |        **+11.7%p** |
+| Phi-3-mini-Instruct       |  15.3% |     16.0% |    **28.3%** |        +0.7%p |          +13.0%p |        **+12.3%p** |
+
+
 ## 4. Performance by Problem Difficulty
+
+(Qwen2.5-Coder-3B-Instruct)
 
 | Difficulty  | Problems |   Direct | Self-Plan | Teacher-Plan |
 | ----------- | -------: | -------: | --------: | -----------: |
@@ -136,17 +155,18 @@ LiveCodeBench의 기본 평가 방식은 하나의 test case에서 실패가 발
 <summary><b> Difficulty 상세 내용</b></summary>
 
 
-| Difficulty | Strategy     | Solved Problems¹ | Pass Rate² | Mean Test Pass Ratio³ |
-| ---------- | ------------ | ---------------: | ---------: | --------------------: |
-| Easy       | Direct       |         56 / 100 |     56.00% |                70.01% |
-| Easy       | Self-Plan    |         46 / 100 |     46.00% |                59.94% |
-| Easy       | Teacher-Plan |     **70 / 100** | **70.00%** |            **78.87%** |
-| Medium     | Direct       |          6 / 100 |      6.00% |                23.24% |
-| Medium     | Self-Plan    |          6 / 100 |      6.00% |                22.86% |
-| Medium     | Teacher-Plan |     **16 / 100** | **16.00%** |            **30.64%** |
-| Hard       | Direct       |      **3 / 100** |  **3.00%** |            **18.30%** |
-| Hard       | Self-Plan    |          2 / 100 |      2.00% |                16.49% |
-| Hard       | Teacher-Plan |          1 / 100 |      1.00% |                13.34% |
+| Model    | Strategy |    Easy |  Medium | Hard |
+| -------- | -------- | ------: | ------: | ---: |
+| Coder-3B | Direct   |     57% |      8% |   4% |
+|          | Self     |     42% |      4% |   3% |
+|          | Teacher  | **69%** | **14%** |   2% |
+| Qwen-3B  | Direct   |     36% |      3% |   0% |
+|          | Self     |     31% |      1% |   0% |
+|          | Teacher  | **58%** |  **8%** |   1% |
+| Phi-3    | Direct   |     38% |      6% |   2% |
+|          | Self     |     42% |      3% |   3% |
+|          | Teacher  | **70%** | **14%** |   1% |
+
 
 </details>
 

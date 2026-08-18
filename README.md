@@ -25,16 +25,19 @@ project-sLM-planning/
 │   │   └── model_adapter.py
 │   │
 │   ├── parsing/
-│   │   ├── code_parser.py
-│   │   └── plan_parser.py
+│   │   └── code_parser.py
+│   │
+│   ├── plans/
+│   │   └── teacher_plan_store.py
 │   │
 │   ├── execution/
 │   │   ├── evaluator.py                 # 공통 dispatch
 │   │   ├── livecodebench_evaluator.py   # 공식 LCB evaluator wrapper
-│   │   ├── codeforces_evaluator.py      # Codeforces용 별도 구현
+│   │   ├── codeforces_evaluator.py      # Codeforces용 별도 구현(미구현상태)
 │   │   └── diagnostic_evaluator.py
 │
 │   └── utils/
+│       ├── download_dataset.py
 │       ├── config.py
 │       ├── seed.py
 │       ├── jsonl_logger.py
@@ -43,11 +46,12 @@ project-sLM-planning/
 │
 ├── prompt_templates/                 # 공통 Prompt Template
 │   ├── direct.txt
-│   ├── self_plan_plan.txt
 │   ├── self_plan_code.txt
-│   ├── teacher_plan_code.txt
-│   └── teacher_plan_generation.txt
-│
+│   ├── self_plan_plan.txt
+│   │
+│   ├── feedback_regeneration.txt
+│   ├── self_replan_code.txt
+│   └── self_replan_plan.txt.txt
 │
 ├── phase0_diagnostic_benchmark/
 │
@@ -58,13 +62,16 @@ project-sLM-planning/
 │       ├── run_self_plan.py
 │       └── run_teacher_plan.py
 │   ├── strategies/
-│   ├── runner.py
-│   └── analysis/
+│   ├── analysis/
+│   ├── teacher_plan_generation/
+│   └── runner.py
 │
 ├── phase2_replanning_bottleneck/
 │   ├── configs/
 │   ├── scripts/
 │   ├── strategies/
+│   ├── analysis/
+│   ├── teacher_replan_generation/
 │   └── analysis/
 │
 ├── phase3_coverage_analysis/
