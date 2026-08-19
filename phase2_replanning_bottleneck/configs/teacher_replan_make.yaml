@@ -1,19 +1,25 @@
 experiment:
-  name: phase2_qwen25Coder3b_teacher_replan_export
+  name: phase2_phi3_teacher_replan_export
 
 dataset:
-  name: phase1_qwen25Coder3b_direct
-  path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen25Coder3b/direct/results.jsonl
-  limit: 1
+  name: phase1_phi3_direct
+  path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/phi3/direct/results.jsonl
+  limit: 300
 
+# Teacher에게 전달할 input_text를
+# student와 동일한 tokenizer 기준으로 truncate하기 위한 설정
+model:
+  name_or_path: microsoft/Phi-3.5-mini-instruct
+  trust_remote_code: false
+
+feedback:
+  max_input_tokens: 2048
 
 teacher:
   model: claude-opus-5
   plan_version: v1
-
   max_tokens: 1024
   temperature: 0.0
-
   max_retries: 3
   retry_delay_seconds: 2.0
 
@@ -21,5 +27,6 @@ prompt:
   path: prompt_templates/self_replan_plan.txt
 
 output:
-  dir: /home/dibaeck/workspace/project_sLM_planning/phase2_replanning_bottleneck/log/llm/results.jsonl
+  dir: /mnt/hdd/project_sLM_planning/data/teacher_replans/phi3/opus5_v1
   resume: true
+  replan_file: /mnt/hdd/project_sLM_planning/data/teacher_replans/phi3/opus5_v1/teacher_replans.jsonl

@@ -2,47 +2,38 @@ experiment:
   name: phase2_qwen253b_feedback
   seed: 42
 
+dataset:
+  name: livecodebench_v6_stdin
+  path: /mnt/hdd/project_sLM_planning/data/livecodebench_v6/stdin
+  limit: 300
+
 model:
   name_or_path: Qwen/Qwen2.5-3B-Instruct
   dtype: bfloat16
   device_map: auto
   trust_remote_code : true
 
-
 generation:
   code_max_new_tokens: 1024
   temperature: 0.0
   top_p: 1.0
 
-input:
-  phase1_results_path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/direct_500_stdin/results.jsonl
+feedback:
+  max_input_tokens: 2048
 
-  # null = 모든 eligible failure
-  limit: 500
-
-  # null = 모든 난이도
-  difficulties: null
-
-  # null = EXCLUDED_STATUSES를 제외한 모든 failure status
-  include_statuses: null
-
-  # input / expected / actual 등 각 feedback field 최대 문자 수
-  max_feedback_chars: 2000
+phase1:
+  direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen253b/direct/results.jsonl
 
 strategy:
-  name: feedback_regeneration
-  prompt_path: prompts/feedback_regeneration.txt
+  prompt_path: prompt_templates/feedback_only.txt
   system_prompt: null
 
-generation:
-  # Phase 1과 동일
-  max_new_tokens: 1024
-  temperature: 0.0
-  top_p: 1.0
-
 evaluation:
-  timeout_seconds: 5.0
+  timeout_seconds: 6
+  debug: false
+  include_public_tests: true
+  include_private_tests: true
 
 output:
-  path: /mnt/hdd/project_sLM_planning/output_qwen25_3b_inst/phase2_feedback_regeneration_500/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen253b/feedback/results.jsonl
   resume: true

@@ -1,3 +1,10 @@
+"""
+PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
+python phase2_replanning_bottleneck/scripts/run_self_replan.py \
+  --config phase2_replanning_bottleneck/configs/self_replan_qwen253b.yaml
+
+"""
+
 # phase2_replanning_bottleneck/scripts/run_self_replan.py
 
 from __future__ import annotations
@@ -94,7 +101,11 @@ def main() -> None:
     output_config = config[
         "output"
     ]
-
+    
+    feedback_config = config.get(
+        "feedback",
+        {},
+    )
     # ------------------------------------------------------------------
     # 2. Seed / limit
     # ------------------------------------------------------------------
@@ -231,6 +242,9 @@ def main() -> None:
                 1.0,
             )
         ),
+        max_input_tokens=feedback_config.get(
+            "max_input_tokens"
+        ),
     )
 
     # ------------------------------------------------------------------
@@ -274,23 +288,13 @@ def main() -> None:
     # 9. Output
     # ------------------------------------------------------------------
 
-    output_dir = Path(
-        output_config[
-            "dir"
-        ]
+    output_path = Path(
+        output_config["path"]
     )
 
-    output_dir.mkdir(
+    output_path.parent.mkdir(
         parents=True,
         exist_ok=True,
-    )
-
-    output_path = (
-        output_dir
-        / output_config.get(
-            "result_file",
-            "results.jsonl",
-        )
     )
 
     resume = (
@@ -356,6 +360,11 @@ def main() -> None:
     print(
         f"Resume     : "
         f"{resume}"
+    )
+    
+    print(
+        f"Max input  : "
+        f"{feedback_config.get('max_input_tokens')}"
     )
 
     print()

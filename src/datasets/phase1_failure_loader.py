@@ -62,6 +62,7 @@ class Phase1FailureRecord:
 
     # First failing test feedback
     test_index: int
+    first_failed_status: str
     input_text: str
     expected_output: str
     actual_output: str
@@ -195,6 +196,14 @@ def _build_failure_record(
                 -1,
             )
         ),
+        
+        first_failed_status=str(
+            first_failed.get(
+                "status",
+                "",
+            )
+        ),
+        
         input_text=str(
             first_failed.get(
                 "input_text",

@@ -1,22 +1,26 @@
-# phase2_replanning_bottleneck/teacher_replan_generation/
-# export_teacher_replan_inputs.py
-
 """
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase2_replanning_bottleneck/teacher_replan_generation/export_teacher_inputs.py \
   --config phase2_replanning_bottleneck/configs/teacher_replan_make.yaml
+  
 """
-
+# phase2_replanning_bottleneck/teacher_replan_generation/
+# export_teacher_replan_inputs.py
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
 
+from transformers import AutoTokenizer
+
 from src.datasets.phase1_failure_loader import (
     load_phase1_failures,
 )
 from src.utils.config import load_config
+from src.utils.feedback import (
+    truncate_input_text,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,6 +52,23 @@ def main() -> None:
     teacher_config = config["teacher"]
     prompt_config = config["prompt"]
     output_config = config["output"]
+    
+    
+    feedback_config = config.get(
+        "feedback",
+        {},
+    )
+
+    model_config = config["model"]
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_config["name_or_path"],
+        trust_remote_code=model_config.get(
+            "trust_remote_code",
+            False,
+        ),
+    )
+
 
     # --------------------------------------------------------------
     # Load Phase 1 failures
@@ -89,8 +110,6 @@ def main() -> None:
         "{problem}",
         "{extracted_code}",
         "{input_text}",
-        "{expected_output}",
-        "{actual_output}",
         "{stderr}",
     }
 
@@ -140,21 +159,21 @@ def main() -> None:
         encoding="utf-8",
     ) as f:
         for failure in failures:
+            input_text = truncate_input_text(
+                text=failure.input_text,
+                tokenizer=tokenizer,
+                max_tokens=feedback_config.get(
+                    "max_input_tokens"
+                ),
+            )
+
             teacher_prompt = (
                 prompt_template.format(
                     problem=failure.problem,
                     extracted_code=(
                         failure.extracted_code
                     ),
-                    input_text=(
-                        failure.input_text
-                    ),
-                    expected_output=(
-                        failure.expected_output
-                    ),
-                    actual_output=(
-                        failure.actual_output
-                    ),
+                    input_text=input_text,
                     stderr=(
                         failure.stderr
                     ),
@@ -240,6 +259,11 @@ def main() -> None:
     print(
         f"Output     : "
         f"{output_path}"
+    )
+    
+    print(
+        f"Max input  : "
+        f"{feedback_config.get('max_input_tokens')}"
     )
 
     print()

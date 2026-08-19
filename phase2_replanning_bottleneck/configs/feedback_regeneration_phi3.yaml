@@ -1,5 +1,5 @@
 experiment:
-  name: phase2_qwen25Coder3b_feedback
+  name: phase2_phi3_feedback
   seed: 42
 
 dataset:
@@ -8,10 +8,10 @@ dataset:
   limit: 300
 
 model:
-  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
+  name_or_path: microsoft/Phi-3.5-mini-instruct
   dtype: bfloat16
   device_map: auto
-  trust_remote_code: true
+  trust_remote_code : false
 
 generation:
   code_max_new_tokens: 1024
@@ -22,7 +22,7 @@ feedback:
   max_input_tokens: 2048
 
 phase1:
-  direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen25Coder3b/direct/results.jsonl
+  direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/phi3/direct/results.jsonl
 
 strategy:
   prompt_path: prompt_templates/feedback_only.txt
@@ -35,5 +35,5 @@ evaluation:
   include_private_tests: true
 
 output:
-  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen25Coder3b/feedback/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/phi3/feedback/results.jsonl
   resume: true

@@ -1,5 +1,5 @@
 experiment:
-  name: phase2_qwen25Coder3b_self_replan
+  name: phase2_phi3_teacher_replan
   seed: 42
 
 dataset:
@@ -8,26 +8,27 @@ dataset:
   limit: 300
 
 model:
-  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
+  name_or_path: microsoft/Phi-3.5-mini-instruct
   dtype: bfloat16
   device_map: auto
-  trust_remote_code: true
+  trust_remote_code : false
 
 generation:
-  plan_max_new_tokens: 384        # 384
   code_max_new_tokens: 1024
   temperature: 0.0
   top_p: 1.0
 
-feedback:
-  max_input_tokens: 2048
-  
 phase1:
-  direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen25Coder3b/direct/results.jsonl
+  direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/phi3/direct/results.jsonl
 
 strategy:
-  replan_prompt_path: prompt_templates/self_replan_plan.txt
+  name: teacher_replan
+
+  replan_path: /mnt/hdd/project_sLM_planning/data/teacher_replans/phi3/opus5_v1/teacher_replans.jsonl
+
   code_prompt_path: prompt_templates/self_plan_code.txt
+
+  require_verified: false
   system_prompt: null
 
 
@@ -38,5 +39,5 @@ evaluation:
   include_private_tests: true
 
 output:
-  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen25Coder3b/self_replan/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/phi3/teacher_replan/results.jsonl
   resume: true
