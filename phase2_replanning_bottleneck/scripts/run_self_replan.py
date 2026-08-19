@@ -1,3 +1,10 @@
+"""
+PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
+python phase2_replanning_bottleneck/scripts/run_self_replan.py \
+  --config phase2_replanning_bottleneck/configs/self_replan_qwen25Coder3b.yaml
+
+"""
+
 # phase2_replanning_bottleneck/scripts/run_self_replan.py
 
 from __future__ import annotations
@@ -235,8 +242,8 @@ def main() -> None:
                 1.0,
             )
         ),
-        max_input_chars=feedback_config.get(
-            "max_input_chars"
+        max_input_tokens=feedback_config.get(
+            "max_input_tokens"
         ),
     )
 
@@ -353,6 +360,11 @@ def main() -> None:
     print(
         f"Resume     : "
         f"{resume}"
+    )
+    
+    print(
+        f"Max input  : "
+        f"{feedback_config.get('max_input_tokens')}"
     )
 
     print()

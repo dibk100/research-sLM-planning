@@ -1,55 +1,45 @@
-# src/utils/feedback.py
-
 from __future__ import annotations
 
 
 def truncate_input_text(
     text: str,
-    max_chars: int | None,
+    tokenizer,
+    max_tokens: int | None,
 ) -> str:
-    """
-    Truncate an oversized test input while preserving
-    both the prefix and suffix.
-
-    The returned string is guaranteed to have at most
-    max_chars characters.
-
-    If max_chars is None, truncation is disabled.
-    """
-
-    if max_chars is None:
+    if max_tokens is None:
         return text
 
-    if max_chars <= 0:
+    if max_tokens <= 0:
         raise ValueError(
-            "max_chars must be greater than 0."
+            "max_tokens must be greater than 0."
         )
 
-    if len(text) <= max_chars:
+    token_ids = tokenizer.encode(
+        text,
+        add_special_tokens=False,
+    )
+
+    if len(token_ids) <= max_tokens:
         return text
 
-    marker = "\n...[TEST INPUT TRUNCATED]...\n"
+    head_tokens = max_tokens // 2
+    tail_tokens = max_tokens - head_tokens
 
-    available_chars = (
-        max_chars - len(marker)
+    head_ids = token_ids[:head_tokens]
+    tail_ids = token_ids[-tail_tokens:]
+
+    head_text = tokenizer.decode(
+        head_ids,
+        skip_special_tokens=True,
     )
 
-    if available_chars <= 0:
-        raise ValueError(
-            "max_chars is too small for "
-            "the truncation marker."
-        )
-
-    head_chars = (
-        available_chars // 2
-    )
-
-    tail_chars = (
-        available_chars - head_chars
+    tail_text = tokenizer.decode(
+        tail_ids,
+        skip_special_tokens=True,
     )
 
     return (
-        text[:head_chars]
-        + marker
-        + text[-tail_chars:]
+        head_text
+        + "\n...[TEST INPUT TRUNCATED]...\n"
+        + tail_text
     )

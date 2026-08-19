@@ -1,3 +1,9 @@
+"""
+PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
+python phase2_replanning_bottleneck/scripts/run_teacher_replan.py \
+  --config phase2_replanning_bottleneck/configs/teacher_replan_qwen25Coder3b.yaml
+
+"""
 # phase2_replanning_bottleneck/scripts/run_teacher_replan.py
 
 from __future__ import annotations

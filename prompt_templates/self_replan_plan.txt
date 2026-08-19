@@ -13,12 +13,6 @@ The code failed on the following test case.
 Test Input given to the generated program:
 {input_text}
 
-Expected Output for the test input:
-{expected_output}
-
-Actual Output produced by the generated program:
-{actual_output}
-
 Evaluator Message:
 {stderr}
 

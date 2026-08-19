@@ -227,8 +227,8 @@ def main() -> None:
                 1.0,
             )
         ),
-        max_input_chars=feedback_config.get(
-            "max_input_chars"
+        max_input_tokens=feedback_config.get(
+            "max_input_tokens"
         ),
     )
 
@@ -349,6 +349,11 @@ def main() -> None:
     print(
         f"Resume     : "
         f"{resume}"
+    )
+    
+    print(
+        f"Max input  : "
+        f"{feedback_config.get('max_input_tokens')}"
     )
 
     print()

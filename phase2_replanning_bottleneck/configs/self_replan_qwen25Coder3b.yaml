@@ -20,7 +20,7 @@ generation:
   top_p: 1.0
 
 feedback:
-  max_input_chars: 2000
+  max_input_tokens: 2048
   
 phase1:
   direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen25Coder3b/direct/results.jsonl
