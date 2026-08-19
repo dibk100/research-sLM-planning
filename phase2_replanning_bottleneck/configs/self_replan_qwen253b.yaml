@@ -1,5 +1,5 @@
 experiment:
-  name: phase2_qwen253b_feedback
+  name: phase2_qwen253b_self_replan
   seed: 42
 
 dataset:
@@ -25,7 +25,8 @@ phase1:
   direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen253b/direct/results.jsonl
 
 strategy:
-  prompt_path: prompt_templates/feedback_only.txt
+  replan_prompt_path: prompt_templates/self_replan_plan.txt
+  code_prompt_path: prompt_templates/self_plan_code.txt
   system_prompt: null
 
 evaluation:
@@ -35,5 +36,5 @@ evaluation:
   include_private_tests: true
 
 output:
-  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen253b/feedback/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen253b/self_replan/results.jsonl
   resume: true

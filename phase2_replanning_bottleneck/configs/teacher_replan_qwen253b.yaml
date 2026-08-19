@@ -1,5 +1,5 @@
 experiment:
-  name: phase2_qwen253b_feedback
+  name: phase2_qwen253b_teacher_replan
   seed: 42
 
 dataset:
@@ -18,15 +18,20 @@ generation:
   temperature: 0.0
   top_p: 1.0
 
-feedback:
-  max_input_tokens: 2048
-
 phase1:
   direct_result_path: /mnt/hdd/project_sLM_planning/phase1/livecodebench_v6_stdin/qwen253b/direct/results.jsonl
 
+
 strategy:
-  prompt_path: prompt_templates/feedback_only.txt
+  name: teacher_replan
+
+  replan_path: /mnt/hdd/project_sLM_planning/data/teacher_replans/qwen253b/opus5_v1/teacher_replans.jsonl
+
+  code_prompt_path: prompt_templates/self_plan_code.txt
+
+  require_verified: false
   system_prompt: null
+
 
 evaluation:
   timeout_seconds: 6
@@ -35,5 +40,5 @@ evaluation:
   include_private_tests: true
 
 output:
-  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen253b/feedback/results.jsonl
+  path: /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen253b/teacher_replan/results.jsonl
   resume: true

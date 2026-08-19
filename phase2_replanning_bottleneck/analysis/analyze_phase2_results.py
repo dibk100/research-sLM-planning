@@ -1,10 +1,10 @@
 """
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase2_replanning_bottleneck/analysis/analyze_phase2_results.py \
-  --feedback /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen25Coder3b/feedback/results.jsonl \
-  --self-replan /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen25Coder3b/self_replan/results.jsonl \
-  --teacher-replan /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen25Coder3b/teacher_replan/results.jsonl \
-  --expected-problems 230
+  --feedback /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen253b/feedback/results.jsonl \
+  --self-replan /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen253b/self_replan/results.jsonl \
+  --teacher-replan /mnt/hdd/project_sLM_planning/phase2/livecodebench_v6_stdin/qwen253b/teacher_replan/results.jsonl \
+  --expected-problems 261
 
 """
 from __future__ import annotations

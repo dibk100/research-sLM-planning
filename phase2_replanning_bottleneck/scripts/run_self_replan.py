@@ -1,7 +1,7 @@
 """
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase2_replanning_bottleneck/scripts/run_self_replan.py \
-  --config phase2_replanning_bottleneck/configs/self_replan_qwen25Coder3b.yaml
+  --config phase2_replanning_bottleneck/configs/self_replan_qwen253b.yaml
 
 """
 

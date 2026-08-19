@@ -1,3 +1,13 @@
+"""
+
+PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
+python phase2_replanning_bottleneck/scripts/run_feedback_regeneration.py \
+  --config phase2_replanning_bottleneck/configs/feedback_regeneration_qwen253b.yaml
+
+feedback_regeneration_qwen253b.yaml
+
+"""
+
 # phase2_replanning_bottleneck/scripts/run_feedback_regeneration.py
 
 from __future__ import annotations

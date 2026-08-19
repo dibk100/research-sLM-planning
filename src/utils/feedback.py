@@ -1,3 +1,19 @@
+"""
+아주 긴 input_text
+    ↓
+전체 tokenize
+    ↓
+1,579,939 tokens 생성  ← 여기서 warning
+    ↓
+앞 1024 + 뒤 1024 token 선택
+    ↓
+최종 2048 token
+
+
+warning 원인: truncate_input_text()가 truncation 전에 전체 input을 tokenize함
+
+"""
+
 from __future__ import annotations
 
 
