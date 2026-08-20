@@ -14,6 +14,7 @@ from src.parsing.code_parser import (
 )
 from src.schemas import ProblemExample
 
+import json
 
 # ============================================================
 # Runtime state
@@ -540,7 +541,15 @@ def compute_score(
             "extra_info['problem_text'] is required."
         )
 
-    problem_payload = extra_info["problem"]
+    # problem_payload = extra_info["problem"]
+    problem_payload = json.loads(
+        extra_info["problem_json"]
+    )
+
+    problem = ProblemExample(
+        **problem_payload
+    )
+    
 
     if isinstance(
         problem_payload,

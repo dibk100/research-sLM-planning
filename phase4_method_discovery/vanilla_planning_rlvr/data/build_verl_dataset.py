@@ -1,3 +1,66 @@
+"""
+흐름 : DeepCoder TACO raw JSONL → stdin-only 6,387문제 → train/val split → verl parquet으로 고정
+
+학습데이터 원칙
+1. 학습 prompt에는 problem statement만 들어간다.
+2. unit tests는 extra_info.problem.private_tests 안에만 저장해서 reward evaluator에서만 사용한다.
+3. solutions는 학습 데이터에 넣지 않는다. sanity check에서 evaluator 검증용으로만 쓴 것이므로 training leakage를 막기 위해 제외할 것!
+
+
+PYTHONPATH="$HOME/workspace/project_sLM_planning" \
+python \
+  phase4_method_discovery/vanilla_planning_rlvr/data/build_verl_dataset.py \
+  --max-samples 100 \
+  --val-ratio 0.1 \
+  --seed 42
+
+데이터 저장 위치
+/mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/
+└── vanilla_planning_rlvr/
+    ├── train.parquet
+    ├── val.parquet
+    └── dataset_manifest.json
+    
+    
+(/mnt/hdd/conda_envs/slm) dibaeck@diserver:~/workspace/project_sLM_planning$ PYTHONPATH="$HOME/workspace/project_sLM_planning" \
+python \
+  phase4_method_discovery/vanilla_planning_rlvr/data/build_verl_dataset.py \
+  --max-samples 100 \
+  --val-ratio 0.1 \
+  --seed 42
+==========================================================================================
+Build DeepCoder TACO Vanilla Planning-RLVR Dataset
+==========================================================================================
+input            : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/raw/deepcoder_taco_train.jsonl
+output dir       : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr
+prompt template  : /home/dibaeck/workspace/project_sLM_planning/prompt_templates/self_plan_plan.txt
+val ratio        : 0.1
+seed             : 42
+[DeepCoderTACO] stdin=6387, functional_skipped=1049, invalid_skipped=0
+
+[Load] stdin problems=6387
+[Validate] problem pool OK
+[Limit] using 100 problems
+
+[Split] train=90
+[Split] val=10
+[Validate] no evaluator-test schema leakage in prompts
+
+==========================================================================================
+Dataset Build Complete
+==========================================================================================
+stdin pool       : 100
+train            : 90
+val              : 10
+train parquet    : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/train.parquet
+val parquet      : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/val.parquet
+manifest         : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/dataset_manifest.json
+policy output    : plan only
+reward           : frozen-coder execution 0/1
+reference code   : NOT included
+evaluation tests : extra_info only
+==========================================================================================
+"""
 from __future__ import annotations
 
 import argparse
@@ -11,80 +74,86 @@ from typing import Any
 import pandas as pd
 
 
-# ============================================================
+# ======================================================================
 # Project root
-# ============================================================
+# ======================================================================
 
 THIS_FILE = Path(__file__).resolve()
 PROJECT_ROOT = THIS_FILE.parents[3]
 
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT),
+    )
 
 
+from src.datasets.deepcoder_taco import (
+    load_deepcoder_taco_stdin,
+)
 from src.schemas import ProblemExample
 
 
-# ============================================================
+# ======================================================================
 # Constants
-# ============================================================
+# ======================================================================
 
-DATA_SOURCE = "livecodebench_v6"
+DEFAULT_INPUT = Path(
+    "/mnt/hdd/project_sLM_planning/data/"
+    "deepcoder_taco/raw/"
+    "deepcoder_taco_train.jsonl"
+)
+
+DEFAULT_OUTPUT_DIR = Path(
+    "/mnt/hdd/project_sLM_planning/data/"
+    "deepcoder_taco/processed/"
+    "vanilla_planning_rlvr"
+)
+
+DEFAULT_PROMPT_TEMPLATE = (
+    PROJECT_ROOT
+    / "prompt_templates"
+    / "self_plan_plan.txt"
+)
+
+DATA_SOURCE = "deepcoder_taco"
 ABILITY = "code_planning"
 
-DEFAULT_PLAN_INSTRUCTION = """\
-Analyze the programming problem and produce a concise algorithmic plan.
-
-Focus on:
-- the core algorithm or strategy,
-- necessary data structures,
-- the main computational steps,
-- important edge cases,
-- time and space complexity.
-
-Do not write code.
-Output only the plan.
-"""
+SCHEMA_VERSION = "1.0"
 
 
-# ============================================================
+# ======================================================================
 # CLI
-# ============================================================
+# ======================================================================
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Build verl-compatible Parquet datasets for "
-            "Vanilla Planning-RLVR."
+            "Build verl-compatible train/val parquet files "
+            "from the DeepCoder TACO stdin subset."
         )
     )
 
     parser.add_argument(
         "--input",
         type=str,
-        required=True,
-        help=(
-            "Input JSON or JSONL containing serialized "
-            "ProblemExample records."
-        ),
+        default=str(DEFAULT_INPUT),
+        help="DeepCoder TACO raw JSONL.",
     )
 
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=(
-            "phase4_method_discovery/"
-            "vanilla_planning_rlvr/data/processed"
-        ),
+        default=str(DEFAULT_OUTPUT_DIR),
     )
 
     parser.add_argument(
         "--prompt-template",
         type=str,
-        default=None,
+        default=str(DEFAULT_PROMPT_TEMPLATE),
         help=(
-            "Optional planning prompt template. "
-            "If omitted, the built-in planning instruction is used."
+            "Planning prompt template. "
+            "Recommended: Phase 1 self_plan_plan.txt"
         ),
     )
 
@@ -104,395 +173,117 @@ def parse_args() -> argparse.Namespace:
         "--max-samples",
         type=int,
         default=None,
-        help="Optional maximum number of problems.",
+        help=(
+            "Optional limit applied after stdin filtering. "
+            "Useful for pilot dataset construction."
+        ),
     )
 
     parser.add_argument(
-        "--shuffle",
+        "--no-shuffle",
+        action="store_true",
+        help="Disable deterministic shuffling before split.",
+    )
+
+    parser.add_argument(
+        "--strict",
         action=argparse.BooleanOptionalAction,
         default=True,
+        help=(
+            "Fail immediately on malformed TACO stdin rows. "
+            "Default: true."
+        ),
     )
 
     return parser.parse_args()
 
 
-# ============================================================
-# Input loading
-# ============================================================
-
-def load_problem_records(
-    path: str | Path,
-) -> list[ProblemExample]:
-
-    input_path = Path(path)
-
-    if not input_path.exists():
-        raise FileNotFoundError(
-            f"Input dataset not found: {input_path}"
-        )
-
-    suffix = input_path.suffix.lower()
-
-    if suffix == ".jsonl":
-        payloads = _load_jsonl(input_path)
-
-    elif suffix == ".json":
-        payloads = _load_json(input_path)
-
-    else:
-        raise ValueError(
-            "Input must be .json or .jsonl, "
-            f"got: {input_path.suffix}"
-        )
-
-    problems: list[ProblemExample] = []
-
-    seen_problem_ids: set[str] = set()
-
-    for index, payload in enumerate(payloads):
-
-        if not isinstance(payload, dict):
-            raise TypeError(
-                f"Input row {index} must be dict, "
-                f"got {type(payload).__name__}"
-            )
-
-        try:
-            problem = ProblemExample(**payload)
-
-        except TypeError as exc:
-            raise TypeError(
-                f"Failed to construct ProblemExample "
-                f"at input row {index}: {exc}"
-            ) from exc
-
-        validate_problem(problem)
-
-        if problem.problem_id in seen_problem_ids:
-            raise ValueError(
-                "Duplicate problem_id detected: "
-                f"{problem.problem_id}"
-            )
-
-        seen_problem_ids.add(
-            problem.problem_id
-        )
-
-        problems.append(problem)
-
-    if not problems:
-        raise ValueError(
-            "No problems were loaded."
-        )
-
-    return problems
-
-
-def _load_jsonl(
-    path: Path,
-) -> list[dict[str, Any]]:
-
-    rows: list[dict[str, Any]] = []
-
-    with path.open(
-        "r",
-        encoding="utf-8",
-    ) as f:
-
-        for line_number, line in enumerate(
-            f,
-            start=1,
-        ):
-            line = line.strip()
-
-            if not line:
-                continue
-
-            try:
-                payload = json.loads(line)
-
-            except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"Invalid JSONL at line "
-                    f"{line_number}: {exc}"
-                ) from exc
-
-            rows.append(payload)
-
-    return rows
-
-
-def _load_json(
-    path: Path,
-) -> list[dict[str, Any]]:
-
-    with path.open(
-        "r",
-        encoding="utf-8",
-    ) as f:
-        payload = json.load(f)
-
-    if isinstance(payload, list):
-        return payload
-
-    if isinstance(payload, dict):
-
-        # Allow:
-        #
-        # {
-        #     "problems": [...]
-        # }
-        #
-        if "problems" in payload:
-            problems = payload["problems"]
-
-            if not isinstance(problems, list):
-                raise TypeError(
-                    "'problems' must be a list."
-                )
-
-            return problems
-
-        # Also allow one ProblemExample.
-        return [payload]
-
-    raise TypeError(
-        "JSON input must contain either "
-        "a problem object or a list of problems."
-    )
-
-
-# ============================================================
-# Validation
-# ============================================================
-
-def validate_problem(
-    problem: ProblemExample,
-) -> None:
-
-    if not problem.problem_id:
-        raise ValueError(
-            "problem_id must not be empty."
-        )
-
-    if not problem.problem.strip():
-        raise ValueError(
-            f"Empty problem statement: "
-            f"{problem.problem_id}"
-        )
-
-    if problem.dataset != DATA_SOURCE:
-        raise ValueError(
-            f"Unsupported dataset for "
-            f"{problem.problem_id}: "
-            f"{problem.dataset!r}. "
-            f"Expected {DATA_SOURCE!r}."
-        )
-
-    if problem.evaluation_type not in {
-        "stdin",
-        "functional",
-    }:
-        raise ValueError(
-            f"Unsupported evaluation_type for "
-            f"{problem.problem_id}: "
-            f"{problem.evaluation_type}"
-        )
-
-    if (
-        problem.evaluation_type == "functional"
-        and not problem.function_name
-    ):
-        raise ValueError(
-            f"Functional problem missing "
-            f"function_name: {problem.problem_id}"
-        )
-
-    total_tests = (
-        len(problem.public_tests)
-        + len(problem.private_tests)
-    )
-
-    if total_tests == 0:
-        raise ValueError(
-            f"No tests available: "
-            f"{problem.problem_id}"
-        )
-
-
-# ============================================================
-# Prompt
-# ============================================================
+# ======================================================================
+# Prompt template
+# ======================================================================
 
 def load_prompt_template(
-    path: str | Path | None,
-) -> str | None:
+    path: str | Path,
+) -> str:
+    template_path = Path(path)
 
-    if path is None:
-        return None
-
-    prompt_path = Path(path)
-
-    if not prompt_path.is_absolute():
-        prompt_path = (
-            PROJECT_ROOT / prompt_path
+    if not template_path.is_absolute():
+        template_path = (
+            PROJECT_ROOT
+            / template_path
         )
 
-    if not prompt_path.exists():
+    if not template_path.exists():
         raise FileNotFoundError(
             f"Prompt template not found: "
-            f"{prompt_path}"
+            f"{template_path}"
         )
 
-    template = prompt_path.read_text(
+    template = template_path.read_text(
         encoding="utf-8",
     )
 
     if not template.strip():
         raise ValueError(
             f"Prompt template is empty: "
-            f"{prompt_path}"
+            f"{template_path}"
         )
 
     return template
 
-
 def build_planning_prompt(
     problem: ProblemExample,
     *,
-    template: str | None,
+    template: str,
 ) -> str:
     """
-    Build planner prompt.
+    Reuse the Phase 1 Self-Plan prompt condition.
 
-    If Phase-1 self_plan_plan.txt is supplied, this function
-    reuses it so that Planning-RLVR begins from the same
-    prompt condition as the prior experiments.
+    Supported placeholders:
+        {problem}
+        {title}
+        {starter_code}
+        {starter_code_section}
     """
 
-    if template is None:
+    starter_code_section = ""
 
-        sections = [
-            DEFAULT_PLAN_INSTRUCTION.strip(),
-            "",
-            "## Problem",
-            problem.problem.strip(),
-        ]
-
-        if problem.starter_code.strip():
-            sections.extend(
-                [
-                    "",
-                    "## Starter Code",
-                    problem.starter_code.strip(),
-                ]
-            )
-
-        return "\n".join(sections).strip()
-
-    # --------------------------------------------------------
-    # Reuse Phase-1 template when possible.
-    #
-    # Supported placeholders:
-    #   {problem}
-    #   {title}
-    #   {starter_code}
-    # --------------------------------------------------------
+    if problem.starter_code.strip():
+        starter_code_section = (
+            "\n\nStarter Code:\n"
+            f"{problem.starter_code.strip()}"
+        )
 
     try:
         prompt = template.format(
             problem=problem.problem,
             title=problem.title,
             starter_code=problem.starter_code,
+            starter_code_section=starter_code_section,
         )
 
     except KeyError as exc:
         raise KeyError(
-            "Planning prompt template uses an "
-            "unsupported placeholder. "
-            "Supported placeholders are "
-            "{problem}, {title}, {starter_code}. "
+            "Unsupported placeholder in planning prompt. "
+            "Supported placeholders: "
+            "{problem}, {title}, {starter_code}, "
+            "{starter_code_section}. "
             f"Missing key: {exc}"
         ) from exc
 
-    return prompt.strip()
+    prompt = prompt.strip()
 
+    if not prompt:
+        raise ValueError(
+            f"Built prompt is empty: "
+            f"{problem.problem_id}"
+        )
 
-# ============================================================
-# verl row
-# ============================================================
+    return prompt
 
-def build_verl_row(
-    problem: ProblemExample,
-    *,
-    split: str,
-    index: int,
-    prompt_template: str | None,
-) -> dict[str, Any]:
-    """
-    Convert one ProblemExample to verl's RLHF dataset schema.
-
-    The policy response is expected to contain ONLY the plan.
-    """
-
-    planning_prompt = build_planning_prompt(
-        problem,
-        template=prompt_template,
-    )
-
-    problem_dict = asdict(problem)
-
-    row = {
-        # Used by reward manager / compute_score.
-        "data_source": DATA_SOURCE,
-
-        # verl applies the tokenizer chat template later.
-        "prompt": [
-            {
-                "role": "user",
-                "content": planning_prompt,
-            }
-        ],
-
-        # Metadata/category field.
-        "ability": ABILITY,
-
-        # Required for compatibility with the normal
-        # verl reward-manager interface.
-        #
-        # Vanilla Planning-RLVR does NOT use a textual
-        # ground-truth answer; correctness comes from
-        # LiveCodeBench execution.
-        "reward_model": {
-            "style": "rule",
-            "ground_truth": "",
-        },
-
-        # Passed to our compute_score(...).
-        "extra_info": {
-            "split": split,
-            "index": index,
-
-            "problem_id": problem.problem_id,
-
-            # Convenience duplicate used by coder prompt.
-            "problem_text": problem.problem,
-
-            # Serialized ProblemExample.
-            #
-            # IMPORTANT:
-            # After Parquet loading this is a dict,
-            # not a ProblemExample instance.
-            "problem": problem_dict,
-        },
-    }
-
-    return row
-
-
-# ============================================================
+# ======================================================================
 # Split
-# ============================================================
+# ======================================================================
 
 def split_problems(
     problems: list[ProblemExample],
@@ -504,25 +295,42 @@ def split_problems(
     list[ProblemExample],
     list[ProblemExample],
 ]:
-
     if not 0.0 <= val_ratio < 1.0:
         raise ValueError(
             "val_ratio must satisfy "
             "0 <= val_ratio < 1."
         )
 
-    items = list(problems)
+    items = list(
+        problems
+    )
 
     if shuffle:
-        rng = random.Random(seed)
-        rng.shuffle(items)
+        rng = random.Random(
+            seed
+        )
+
+        rng.shuffle(
+            items
+        )
 
     if val_ratio == 0.0:
         return items, []
 
+    if len(items) < 2:
+        raise ValueError(
+            "At least two problems are required "
+            "for train/val split."
+        )
+
+    num_val = round(
+        len(items)
+        * val_ratio
+    )
+
     num_val = max(
         1,
-        round(len(items) * val_ratio),
+        num_val,
     )
 
     num_val = min(
@@ -530,68 +338,398 @@ def split_problems(
         len(items) - 1,
     )
 
-    val = items[:num_val]
-    train = items[num_val:]
+    val = items[
+        :num_val
+    ]
+
+    train = items[
+        num_val:
+    ]
 
     return train, val
 
 
-# ============================================================
-# Save
-# ============================================================
+# ======================================================================
+# verl row construction
+# ======================================================================
+
+def build_verl_row(
+    problem: ProblemExample,
+    *,
+    split: str,
+    index: int,
+    prompt_template: str,
+) -> dict[str, Any]:
+    """
+    Convert one TACO ProblemExample into a verl-compatible row.
+
+    Important:
+    - prompt contains NO unit tests
+    - reference solutions are NOT stored
+    - execution tests live only in extra_info.problem.private_tests
+    """
+
+    planning_prompt = (
+        build_planning_prompt(
+            problem,
+            template=prompt_template,
+        )
+    )
+
+    problem_payload = asdict(
+        problem
+    )
+
+    return {
+        # --------------------------------------------------------------
+        # verl dataset identity
+        # --------------------------------------------------------------
+
+        "data_source": DATA_SOURCE,
+
+        # --------------------------------------------------------------
+        # Policy input
+        #
+        # verl will apply the tokenizer's chat template later.
+        # --------------------------------------------------------------
+
+        "prompt": [
+            {
+                "role": "user",
+                "content": planning_prompt,
+            }
+        ],
+
+        # --------------------------------------------------------------
+        # Task category
+        # --------------------------------------------------------------
+
+        "ability": ABILITY,
+
+        # --------------------------------------------------------------
+        # Reward manager compatibility
+        #
+        # There is no textual ground-truth answer.
+        # Correctness is determined through code execution.
+        # --------------------------------------------------------------
+
+        "reward_model": {
+            "style": "rule",
+            "ground_truth": "",
+        },
+
+        # --------------------------------------------------------------
+        # Custom Planning-RLVR reward payload
+        # --------------------------------------------------------------
+
+        "extra_info": {
+            "schema_version": (
+                SCHEMA_VERSION
+            ),
+
+            "split": split,
+
+            "index": index,
+
+            "problem_id": (
+                problem.problem_id
+            ),
+
+            "problem_text": (
+                problem.problem
+            ),
+
+            # Store ProblemExample as JSON instead of a nested
+            # Arrow struct. TACO stdin inputs can be either str
+            # or list[str], which PyArrow cannot represent in one
+            # homogeneous nested field.
+            "problem_json": json.dumps(
+                problem_payload,
+                ensure_ascii=False,
+            ),
+        },
+    }
+
+
+# ======================================================================
+# Dataset checks
+# ======================================================================
+
+def validate_problem_pool(
+    problems: list[
+        ProblemExample
+    ],
+) -> None:
+    seen_ids: set[str] = set()
+
+    for problem in problems:
+        if (
+            problem.dataset
+            != DATA_SOURCE
+        ):
+            raise ValueError(
+                f"Unexpected dataset: "
+                f"{problem.problem_id} -> "
+                f"{problem.dataset}"
+            )
+
+        if (
+            problem.evaluation_type
+            != "stdin"
+        ):
+            raise ValueError(
+                f"Non-stdin problem found: "
+                f"{problem.problem_id}"
+            )
+
+        if not problem.problem.strip():
+            raise ValueError(
+                f"Empty problem text: "
+                f"{problem.problem_id}"
+            )
+
+        if not problem.private_tests:
+            raise ValueError(
+                f"No private tests: "
+                f"{problem.problem_id}"
+            )
+
+        if problem.public_tests:
+            raise ValueError(
+                f"TACO training problem unexpectedly "
+                f"contains public_tests: "
+                f"{problem.problem_id}"
+            )
+
+        if (
+            problem.problem_id
+            in seen_ids
+        ):
+            raise ValueError(
+                f"Duplicate problem_id: "
+                f"{problem.problem_id}"
+            )
+
+        seen_ids.add(
+            problem.problem_id
+        )
+
+
+def check_prompt_leakage(
+    rows: list[
+        dict[str, Any]
+    ],
+) -> None:
+    """
+    Lightweight sanity check.
+
+    We intentionally do NOT search test strings inside the natural-language
+    statement because sample cases can legitimately appear in problem text.
+
+    Instead, verify structurally that tests only exist under extra_info.
+    """
+
+    for index, row in enumerate(
+        rows
+    ):
+        prompt = row.get(
+            "prompt"
+        )
+
+        if not isinstance(
+            prompt,
+            list,
+        ):
+            raise TypeError(
+                f"row={index}: prompt must be list."
+            )
+
+        prompt_serialized = (
+            json.dumps(
+                prompt,
+                ensure_ascii=False,
+            )
+        )
+
+        if (
+            '"private_tests"'
+            in prompt_serialized
+            or '"public_tests"'
+            in prompt_serialized
+        ):
+            raise ValueError(
+                f"row={index}: evaluator tests "
+                f"leaked into prompt."
+            )
+
+
+# ======================================================================
+# Parquet save
+# ======================================================================
 
 def save_parquet(
-    rows: list[dict[str, Any]],
-    output_path: Path,
+    rows: list[
+        dict[str, Any]
+    ],
+    path: Path,
 ) -> None:
-
-    output_path.parent.mkdir(
+    path.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(
+        rows
+    )
 
     df.to_parquet(
-        output_path,
+        path,
         engine="pyarrow",
         index=False,
     )
 
 
+# ======================================================================
+# Manifest
+# ======================================================================
+
 def save_manifest(
     *,
     output_dir: Path,
-    train_problems: list[ProblemExample],
-    val_problems: list[ProblemExample],
+    input_path: Path,
+    prompt_template_path: Path,
+    train_problems: list[
+        ProblemExample
+    ],
+    val_problems: list[
+        ProblemExample
+    ],
     seed: int,
     val_ratio: float,
+    shuffled: bool,
 ) -> None:
+    train_test_counts = [
+        len(
+            problem.private_tests
+        )
+        for problem
+        in train_problems
+    ]
+
+    val_test_counts = [
+        len(
+            problem.private_tests
+        )
+        for problem
+        in val_problems
+    ]
 
     manifest = {
-        "schema_version": "1.0",
-        "data_source": DATA_SOURCE,
-        "ability": ABILITY,
-        "seed": seed,
-        "val_ratio": val_ratio,
-        "num_train": len(train_problems),
-        "num_val": len(val_problems),
+        "schema_version": (
+            SCHEMA_VERSION
+        ),
+
+        "source": {
+            "dataset": (
+                "agentica-org/"
+                "DeepCoder-Preview-Dataset"
+            ),
+            "config": "taco",
+            "raw_input": str(
+                input_path
+            ),
+        },
+
+        "filtering": {
+            "evaluation_type": (
+                "stdin"
+            ),
+            "functional_excluded": (
+                True
+            ),
+            "solutions_excluded": (
+                True
+            ),
+            "tests_excluded_from_prompt": (
+                True
+            ),
+        },
+
+        "verl": {
+            "data_source": (
+                DATA_SOURCE
+            ),
+            "ability": (
+                ABILITY
+            ),
+            "reward_type": (
+                "execution_binary"
+            ),
+        },
+
+        "prompt_template": str(
+            prompt_template_path
+        ),
+
+        "split": {
+            "seed": seed,
+            "val_ratio": val_ratio,
+            "shuffled": shuffled,
+
+            "num_train": len(
+                train_problems
+            ),
+
+            "num_val": len(
+                val_problems
+            ),
+        },
+
+        "test_statistics": {
+            "train_min_tests": (
+                min(train_test_counts)
+                if train_test_counts
+                else None
+            ),
+
+            "train_max_tests": (
+                max(train_test_counts)
+                if train_test_counts
+                else None
+            ),
+
+            "val_min_tests": (
+                min(val_test_counts)
+                if val_test_counts
+                else None
+            ),
+
+            "val_max_tests": (
+                max(val_test_counts)
+                if val_test_counts
+                else None
+            ),
+        },
+
         "train_problem_ids": [
             problem.problem_id
-            for problem in train_problems
+            for problem
+            in train_problems
         ],
+
         "val_problem_ids": [
             problem.problem_id
-            for problem in val_problems
+            for problem
+            in val_problems
         ],
     }
 
-    manifest_path = (
+    path = (
         output_dir
         / "dataset_manifest.json"
     )
 
-    with manifest_path.open(
+    with path.open(
         "w",
         encoding="utf-8",
     ) as f:
@@ -603,35 +741,103 @@ def save_manifest(
         )
 
 
-# ============================================================
+# ======================================================================
 # Main
-# ============================================================
+# ======================================================================
 
 def main() -> None:
     args = parse_args()
 
-    print("=" * 80)
-    print("Build Vanilla Planning-RLVR Dataset")
-    print("=" * 80)
-
-    # --------------------------------------------------------
-    # Load
-    # --------------------------------------------------------
-
-    problems = load_problem_records(
+    input_path = Path(
         args.input
     )
 
-    print(
-        f"[Data] loaded={len(problems)}"
+    output_dir = Path(
+        args.output_dir
     )
 
-    # --------------------------------------------------------
-    # Optional limit
-    # --------------------------------------------------------
+    prompt_template_path = Path(
+        args.prompt_template
+    )
+
+    if not prompt_template_path.is_absolute():
+        prompt_template_path = (
+            PROJECT_ROOT
+            / prompt_template_path
+        )
+
+    print("=" * 90)
+    print(
+        "Build DeepCoder TACO "
+        "Vanilla Planning-RLVR Dataset"
+    )
+    print("=" * 90)
+
+    print(
+        f"input            : "
+        f"{input_path}"
+    )
+
+    print(
+        f"output dir       : "
+        f"{output_dir}"
+    )
+
+    print(
+        f"prompt template  : "
+        f"{prompt_template_path}"
+    )
+
+    print(
+        f"val ratio        : "
+        f"{args.val_ratio}"
+    )
+
+    print(
+        f"seed             : "
+        f"{args.seed}"
+    )
+
+    # ------------------------------------------------------------------
+    # 1. Load stdin-only DeepCoder TACO
+    # ------------------------------------------------------------------
+
+    problems = (
+        load_deepcoder_taco_stdin(
+            input_path,
+            strict=args.strict,
+        )
+    )
+
+    print()
+    print(
+        f"[Load] stdin problems="
+        f"{len(problems)}"
+    )
+
+    # Expected with the current DeepCoder release:
+    #
+    #     6387 stdin problems
+    #
+    # Do not hard-fail here because future dataset versions may differ.
+
+    # ------------------------------------------------------------------
+    # 2. Validate pool
+    # ------------------------------------------------------------------
+
+    validate_problem_pool(
+        problems
+    )
+
+    print(
+        "[Validate] problem pool OK"
+    )
+
+    # ------------------------------------------------------------------
+    # 3. Optional pilot limit
+    # ------------------------------------------------------------------
 
     if args.max_samples is not None:
-
         if args.max_samples <= 0:
             raise ValueError(
                 "--max-samples must be > 0."
@@ -642,62 +848,61 @@ def main() -> None:
         ]
 
         print(
-            f"[Data] limited={len(problems)}"
+            f"[Limit] using "
+            f"{len(problems)} problems"
         )
 
-    # --------------------------------------------------------
-    # Prompt
-    # --------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 4. Prompt
+    # ------------------------------------------------------------------
 
     prompt_template = (
         load_prompt_template(
-            args.prompt_template
+            prompt_template_path
         )
     )
 
-    if args.prompt_template is None:
-        print(
-            "[Prompt] using built-in planning prompt"
-        )
-    else:
-        print(
-            f"[Prompt] template="
-            f"{args.prompt_template}"
-        )
-
-    # --------------------------------------------------------
-    # Split
-    # --------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 5. Train/val split
+    # ------------------------------------------------------------------
 
     train_problems, val_problems = (
         split_problems(
             problems,
             val_ratio=args.val_ratio,
             seed=args.seed,
-            shuffle=args.shuffle,
+            shuffle=(
+                not args.no_shuffle
+            ),
         )
     )
 
+    print()
     print(
-        f"[Split] train={len(train_problems)}"
+        f"[Split] train="
+        f"{len(train_problems)}"
     )
 
     print(
-        f"[Split] val={len(val_problems)}"
+        f"[Split] val="
+        f"{len(val_problems)}"
     )
 
-    # --------------------------------------------------------
-    # Build rows
-    # --------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 6. Build verl rows
+    # ------------------------------------------------------------------
 
     train_rows = [
         build_verl_row(
             problem,
             split="train",
             index=index,
-            prompt_template=prompt_template,
+            prompt_template=(
+                prompt_template
+            ),
         )
-        for index, problem in enumerate(
+        for index, problem
+        in enumerate(
             train_problems
         )
     ]
@@ -707,32 +912,50 @@ def main() -> None:
             problem,
             split="val",
             index=index,
-            prompt_template=prompt_template,
+            prompt_template=(
+                prompt_template
+            ),
         )
-        for index, problem in enumerate(
+        for index, problem
+        in enumerate(
             val_problems
         )
     ]
 
-    # --------------------------------------------------------
-    # Save
-    # --------------------------------------------------------
+    # ------------------------------------------------------------------
+    # 7. Leakage sanity check
+    # ------------------------------------------------------------------
 
-    output_dir = Path(
-        args.output_dir
+    check_prompt_leakage(
+        train_rows
     )
 
-    if not output_dir.is_absolute():
-        output_dir = (
-            PROJECT_ROOT / output_dir
-        )
+    check_prompt_leakage(
+        val_rows
+    )
+
+    print(
+        "[Validate] no evaluator-test "
+        "schema leakage in prompts"
+    )
+
+    # ------------------------------------------------------------------
+    # 8. Save parquet
+    # ------------------------------------------------------------------
+
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     train_path = (
-        output_dir / "train.parquet"
+        output_dir
+        / "train.parquet"
     )
 
     val_path = (
-        output_dir / "val.parquet"
+        output_dir
+        / "val.parquet"
     )
 
     save_parquet(
@@ -746,53 +969,88 @@ def main() -> None:
             val_path,
         )
 
+    # ------------------------------------------------------------------
+    # 9. Manifest
+    # ------------------------------------------------------------------
+
     save_manifest(
         output_dir=output_dir,
-        train_problems=train_problems,
-        val_problems=val_problems,
+        input_path=input_path,
+        prompt_template_path=(
+            prompt_template_path
+        ),
+        train_problems=(
+            train_problems
+        ),
+        val_problems=(
+            val_problems
+        ),
         seed=args.seed,
         val_ratio=args.val_ratio,
+        shuffled=(
+            not args.no_shuffle
+        ),
     )
 
-    # --------------------------------------------------------
+    # ------------------------------------------------------------------
     # Summary
-    # --------------------------------------------------------
+    # ------------------------------------------------------------------
 
     print()
-    print("=" * 80)
-    print("Dataset Summary")
-    print("=" * 80)
+    print("=" * 90)
+    print("Dataset Build Complete")
+    print("=" * 90)
 
     print(
-        f"train             : "
+        f"stdin pool       : "
+        f"{len(problems)}"
+    )
+
+    print(
+        f"train            : "
+        f"{len(train_rows)}"
+    )
+
+    print(
+        f"val              : "
+        f"{len(val_rows)}"
+    )
+
+    print(
+        f"train parquet    : "
         f"{train_path}"
     )
 
     if val_rows:
         print(
-            f"val               : "
+            f"val parquet      : "
             f"{val_path}"
         )
 
     print(
-        f"train samples     : "
-        f"{len(train_rows)}"
+        f"manifest         : "
+        f"{output_dir / 'dataset_manifest.json'}"
     )
 
     print(
-        f"val samples       : "
-        f"{len(val_rows)}"
+        "policy output    : plan only"
     )
 
     print(
-        "policy response   : PLAN ONLY"
+        "reward           : "
+        "frozen-coder execution 0/1"
     )
 
     print(
-        "reward            : execution-based 0/1"
+        "reference code   : NOT included"
     )
 
-    print("=" * 80)
+    print(
+        "evaluation tests : "
+        "extra_info only"
+    )
+
+    print("=" * 90)
 
 
 if __name__ == "__main__":

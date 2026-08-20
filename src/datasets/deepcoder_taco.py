@@ -93,70 +93,55 @@ def is_stdin_problem(
         tests.get("fn_name")
     )
 
-
-def _require_text(
-    value: Any,
-    *,
-    field_name: str,
-    row_index: int,
-    test_index: int,
-) -> str:
-    """
-    stdin tests should already be text.
-
-    We intentionally do not silently serialize non-string values,
-    because that could change execution semantics.
-    """
-
-    if not isinstance(value, str):
-        raise DeepCoderTACOFormatError(
-            f"row={row_index}, test={test_index}: "
-            f"{field_name} must be str, "
-            f"got {type(value).__name__}"
-        )
-
-    return value
-
-
 def build_test_cases(
     *,
     tests: dict[str, Any],
     row_index: int,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """
-    Convert DeepCoder's inputs/outputs arrays to the local
+    Convert DeepCoder TACO inputs/outputs arrays to the local
     ProblemExample test schema.
+
+    Important:
+    TACO stdin inputs are not always strings.
+    Some examples represent stdin as list[str].
+
+    Preserve the original representation because the
+    DeepCoder/rLLM evaluator handles these formats directly.
     """
 
     inputs = tests["inputs"]
     outputs = tests["outputs"]
 
-    test_cases: list[dict[str, str]] = []
+    test_cases: list[dict[str, Any]] = []
 
     for test_index, (
         test_input,
         test_output,
     ) in enumerate(
-        zip(inputs, outputs)
+        zip(
+            inputs,
+            outputs,
+        )
     ):
-        input_text = _require_text(
-            test_input,
-            field_name="input",
-            row_index=row_index,
-            test_index=test_index,
-        )
+        if test_input is None:
+            raise DeepCoderTACOFormatError(
+                f"row={row_index}, "
+                f"test={test_index}: "
+                "input is None"
+            )
 
-        output_text = _require_text(
-            test_output,
-            field_name="output",
-            row_index=row_index,
-            test_index=test_index,
-        )
+        if test_output is None:
+            raise DeepCoderTACOFormatError(
+                f"row={row_index}, "
+                f"test={test_index}: "
+                "output is None"
+            )
 
         test_cases.append(
             {
-                "input": input_text,
-                "output": output_text,
+                "input": test_input,
+                "output": test_output,
             }
         )
 

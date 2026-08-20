@@ -168,34 +168,20 @@ class TACOEvaluator:
     # ==================================================================
     # Local ProblemExample -> TACO format
     # ==================================================================
-
     @staticmethod
     def _build_taco_tests(
         problem: ProblemExample,
-    ) -> dict[str, list[str]]:
+    ) -> dict[str, list[Any]]:
         """
-        Convert local private_tests back into TACO format.
+        Restore the original TACO test representation.
 
-        Local:
-
-            [
-                {
-                    "input": "...",
-                    "output": "..."
-                },
-                ...
-            ]
-
-        TACO:
-
-            {
-                "inputs": [...],
-                "outputs": [...]
-            }
+        Do not coerce inputs/outputs to strings.
+        rLLM's evaluator handles list-based stdin inputs and
+        list-based outputs according to its original semantics.
         """
 
-        inputs: list[str] = []
-        outputs: list[str] = []
+        inputs: list[Any] = []
+        outputs: list[Any] = []
 
         for test_index, test_case in enumerate(
             problem.private_tests
@@ -224,37 +210,12 @@ class TACOEvaluator:
                     f"test_index={test_index}"
                 )
 
-            test_input = test_case["input"]
-            test_output = test_case["output"]
-
-            if not isinstance(
-                test_input,
-                str,
-            ):
-                raise TypeError(
-                    "TACO stdin test input must be str, "
-                    f"problem={problem.problem_id}, "
-                    f"test_index={test_index}, "
-                    f"got={type(test_input).__name__}"
-                )
-
-            if not isinstance(
-                test_output,
-                str,
-            ):
-                raise TypeError(
-                    "TACO stdin test output must be str, "
-                    f"problem={problem.problem_id}, "
-                    f"test_index={test_index}, "
-                    f"got={type(test_output).__name__}"
-                )
-
             inputs.append(
-                test_input
+                test_case["input"]
             )
 
             outputs.append(
-                test_output
+                test_case["output"]
             )
 
         if len(inputs) != len(outputs):
