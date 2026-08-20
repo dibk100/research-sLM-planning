@@ -81,7 +81,7 @@ project-sLM-planning/
 │   │   ├── scripts/
 │   │   └── analysis/
 │   │
-│   └── b_coder_coverage/
+│   └── b_code_coverage/
 │       ├── configs/
 │       ├── scripts/
 │       └── analysis/

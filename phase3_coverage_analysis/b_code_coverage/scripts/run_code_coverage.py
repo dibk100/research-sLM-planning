@@ -1,36 +1,52 @@
 """
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
-python phase3_coverage_analysis/a_planning_coverage/scripts/run_planning_coverage.py \
-  --config phase3_coverage_analysis/a_planning_coverage/configs/qwen25Coder3b.yaml
-  
+python phase3_coverage_analysis/b_code_coverage/scripts/run_code_coverage.py \
+  --config phase3_coverage_analysis/b_code_coverage/configs/qwen25Coder3b.yaml
 """
-# phase3_coverage_analysis/a_planning_coverage/
-# scripts/run_planning_coverage.py
+# phase3_coverage_analysis/b_code_coverage/
+# scripts/run_code_coverage.py
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 
-from phase3_coverage_analysis.a_planning_coverage.runner import (
-    PlanningCoverageRunner,
+from phase3_coverage_analysis.b_code_coverage.fixed_plan_loader import (
+    FixedPlanLoader,
 )
-from phase3_coverage_analysis.a_planning_coverage.strategies.planning_coverage import (
-    PlanningCoverageStrategy,
+from phase3_coverage_analysis.b_code_coverage.runner import (
+    CodeCoverageRunner,
+)
+from phase3_coverage_analysis.b_code_coverage.strategies.code_coverage import (
+    CodeCoverageStrategy,
 )
 
-from src.datasets.dataset_loader import load_dataset
-from src.execution.evaluator import Evaluator
-from src.models.generator import ModelGenerator
-from src.parsing.code_parser import CodeParser
-from src.utils.config import load_config
-from src.utils.seed import set_seed
+from src.datasets.dataset_loader import (
+    load_dataset,
+)
+from src.execution.evaluator import (
+    Evaluator,
+)
+from src.models.generator import (
+    ModelGenerator,
+)
+from src.parsing.code_parser import (
+    CodeParser,
+)
+from src.utils.config import (
+    load_config,
+)
+from src.utils.seed import (
+    set_seed,
+)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run Phase 3-A planning coverage experiment."
+            "Run Phase 3-B code coverage "
+            "experiment using a fixed Phase 1 "
+            "Self-Plan and stochastic code sampling."
         )
     )
 
@@ -38,8 +54,8 @@ def parse_args() -> argparse.Namespace:
         "--config",
         required=True,
         help=(
-            "Path to the Phase 3-A planning coverage "
-            "YAML config."
+            "Path to the Phase 3-B "
+            "code-coverage YAML config."
         ),
     )
 
@@ -48,18 +64,8 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help=(
-            "Optional override for the number of "
-            "benchmark problems."
-        ),
-    )
-
-    parser.add_argument(
-        "--num-samples",
-        type=int,
-        default=None,
-        help=(
-            "Optional override for the number of "
-            "planning candidates N."
+            "Optional number of benchmark "
+            "problems to process."
         ),
     )
 
@@ -67,7 +73,7 @@ def parse_args() -> argparse.Namespace:
         "--no-resume",
         action="store_true",
         help=(
-            "Disable resume from an existing "
+            "Disable resume from existing "
             "results.jsonl."
         ),
     )
@@ -78,9 +84,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    # --------------------------------------------------------------
-    # 1. Config
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 1. Load config
+    # ----------------------------------------------------------
 
     config = load_config(
         args.config
@@ -89,33 +95,44 @@ def main() -> None:
     experiment_config = config[
         "experiment"
     ]
-    dataset_config = config[
-        "dataset"
-    ]
-    model_config = config[
-        "model"
-    ]
+    
     sampling_config = config[
         "sampling"
     ]
+    
     generation_config = config[
-        "generation"
+            "generation"
     ]
+
+    dataset_config = config[
+        "dataset"
+    ]
+
+    model_config = config[
+        "model"
+    ]
+
+    phase1_config = config[
+        "phase1"
+    ]
+
     strategy_config = config[
         "strategy"
     ]
+
     evaluation_config = config[
         "evaluation"
     ]
+
     output_config = config[
         "output"
     ]
-
-    plan_generation_config = (
-        generation_config[
-            "plan"
-        ]
-    )
+    
+    # plan_generation_config = (
+    #     generation_config[
+    #         "plan"
+    #     ]
+    # )
 
     code_generation_config = (
         generation_config[
@@ -123,9 +140,9 @@ def main() -> None:
         ]
     )
 
-    # --------------------------------------------------------------
-    # 2. Seed / limit / N
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 2. Seed / limit
+    # ----------------------------------------------------------
 
     seed = int(
         experiment_config.get(
@@ -138,75 +155,51 @@ def main() -> None:
         seed
     )
 
-    dataset_limit = (
+    limit = (
         args.limit
         if args.limit is not None
-        else dataset_config.get(
+        else experiment_config.get(
             "limit"
         )
     )
 
-    if dataset_limit is not None:
-        dataset_limit = int(
-            dataset_limit
+    if limit is not None:
+        limit = int(
+            limit
         )
 
-        if dataset_limit <= 0:
+        if limit <= 0:
             raise ValueError(
-                "dataset limit must be "
-                "greater than 0."
+                "limit must be greater than 0."
             )
 
+    # ----------------------------------------------------------
+    # 3. Number of candidates
+    # ----------------------------------------------------------
+
     num_samples = int(
-        args.num_samples
-        if args.num_samples is not None
-        else sampling_config.get(
+        sampling_config.get(
             "num_samples",
-            8,
+            16,
         )
     )
 
     if num_samples <= 0:
         raise ValueError(
-            "num_samples must be "
-            "greater than 0."
+            "num_samples must be greater than 0."
         )
 
-    # --------------------------------------------------------------
-    # 3. Validate Phase 3-A experimental condition
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 4. Load canonical benchmark
+    # ----------------------------------------------------------
 
-    plan_temperature = float(
-        plan_generation_config.get(
-            "temperature",
-            0.7,
-        )
-    )
-
-    code_temperature = float(
-        code_generation_config.get(
-            "temperature",
-            0.0,
+    dataset_limit = (
+        limit
+        if limit is not None
+        else dataset_config.get(
+            "limit"
         )
     )
-
-    if plan_temperature <= 0.0:
-        raise ValueError(
-            "Phase 3-A requires stochastic "
-            "plan generation "
-            "(plan temperature > 0)."
-        )
-
-    if code_temperature != 0.0:
-        raise ValueError(
-            "Phase 3-A requires deterministic "
-            "code generation "
-            "(code temperature = 0.0)."
-        )
-
-    # --------------------------------------------------------------
-    # 4. Dataset
-    # --------------------------------------------------------------
 
     examples = load_dataset(
         dataset_name=dataset_config[
@@ -223,9 +216,23 @@ def main() -> None:
             "No benchmark problems were loaded."
         )
 
-    # --------------------------------------------------------------
-    # 5. Model
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 5. Load fixed Phase 1 Self-Plans
+    # ----------------------------------------------------------
+
+    phase1_result_path = Path(
+        phase1_config[
+            "self_plan_result_path"
+        ]
+    )
+
+    fixed_plan_loader = FixedPlanLoader(
+        results_path=phase1_result_path,
+    )
+
+    # ----------------------------------------------------------
+    # 6. Build model
+    # ----------------------------------------------------------
 
     generator = ModelGenerator(
         model_name_or_path=model_config[
@@ -244,38 +251,21 @@ def main() -> None:
             False,
         ),
     )
+    
+    
 
-    # --------------------------------------------------------------
-    # 6. Strategy
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 7. Build Code Coverage strategy
+    # ----------------------------------------------------------
 
-    strategy = PlanningCoverageStrategy(
+    strategy = CodeCoverageStrategy(
         generator=generator,
 
-        plan_prompt_path=strategy_config[
-            "plan_prompt_path"
-        ],
         code_prompt_path=strategy_config[
             "code_prompt_path"
         ],
 
         base_seed=seed,
-
-        plan_max_new_tokens=int(
-            plan_generation_config.get(
-                "max_new_tokens",
-                512,
-            )
-        ),
-        plan_temperature=(
-            plan_temperature
-        ),
-        plan_top_p=float(
-            plan_generation_config.get(
-                "top_p",
-                0.95,
-            )
-        ),
 
         code_max_new_tokens=int(
             code_generation_config.get(
@@ -283,13 +273,18 @@ def main() -> None:
                 1024,
             )
         ),
-        code_temperature=(
-            code_temperature
+
+        code_temperature=float(
+            code_generation_config.get(
+                "temperature",
+                0.7,
+            )
         ),
+
         code_top_p=float(
             code_generation_config.get(
                 "top_p",
-                1.0,
+                0.95,
             )
         ),
 
@@ -298,11 +293,15 @@ def main() -> None:
         ),
     )
 
-    # --------------------------------------------------------------
-    # 7. Parser / evaluator
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 8. Parser
+    # ----------------------------------------------------------
 
     parser = CodeParser()
+
+    # ----------------------------------------------------------
+    # 9. Evaluator
+    # ----------------------------------------------------------
 
     evaluator = Evaluator(
         timeout_seconds=int(
@@ -311,18 +310,21 @@ def main() -> None:
                 6,
             )
         ),
+
         debug=bool(
             evaluation_config.get(
                 "debug",
                 False,
             )
         ),
+
         include_public_tests=bool(
             evaluation_config.get(
                 "include_public_tests",
                 True,
             )
         ),
+
         include_private_tests=bool(
             evaluation_config.get(
                 "include_private_tests",
@@ -331,9 +333,9 @@ def main() -> None:
         ),
     )
 
-    # --------------------------------------------------------------
-    # 8. Output / resume
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 10. Output / resume
+    # ----------------------------------------------------------
 
     output_path = Path(
         output_config[
@@ -370,13 +372,13 @@ def main() -> None:
         )
     )
 
-    # --------------------------------------------------------------
-    # 9. Run configuration
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 11. Print experiment configuration
+    # ----------------------------------------------------------
 
     print("=" * 80)
     print(
-        "Phase 3-A Planning Coverage Experiment"
+        "Phase 3-B Code Coverage Experiment"
     )
     print("=" * 80)
 
@@ -416,28 +418,18 @@ def main() -> None:
     )
 
     print(
-        "Plan gen   : "
-        f"temperature="
-        f"{plan_temperature}, "
-        f"top_p="
-        f"{plan_generation_config.get('top_p', 0.95)}, "
-        f"max_new_tokens="
-        f"{plan_generation_config.get('max_new_tokens', 512)}"
-    )
-
-    print(
         "Code gen   : "
         f"temperature="
-        f"{code_temperature}, "
+        f"{strategy.code_temperature}, "
         f"top_p="
-        f"{code_generation_config.get('top_p', 1.0)}, "
+        f"{strategy.code_top_p}, "
         f"max_new_tokens="
-        f"{code_generation_config.get('max_new_tokens', 1024)}"
+        f"{strategy.code_max_new_tokens}"
     )
 
     print(
-        f"Plan prompt: "
-        f"{strategy_config['plan_prompt_path']}"
+        f"Fixed plan : "
+        f"{phase1_result_path}"
     )
 
     print(
@@ -467,12 +459,17 @@ def main() -> None:
 
     print()
 
-    # --------------------------------------------------------------
-    # 10. Runner
-    # --------------------------------------------------------------
+    # ----------------------------------------------------------
+    # 12. Build runner
+    # ----------------------------------------------------------
 
-    runner = PlanningCoverageRunner(
+    runner = CodeCoverageRunner(
         strategy=strategy,
+
+        fixed_plan_loader=(
+            fixed_plan_loader
+        ),
+
         evaluator=evaluator,
         parser=parser,
 
@@ -481,6 +478,7 @@ def main() -> None:
         model_name=model_config[
             "name_or_path"
         ],
+
         dataset_name=dataset_config[
             "name"
         ],
@@ -489,14 +487,22 @@ def main() -> None:
         num_samples=num_samples,
 
         resume=resume,
-        store_prompts=store_prompts,
+
+        store_prompts=(
+            store_prompts
+        ),
+
         store_test_results=(
             store_test_results
         ),
     )
 
+    # ----------------------------------------------------------
+    # 13. Run
+    # ----------------------------------------------------------
+
     runner.run(
-        examples
+        examples=examples
     )
 
 

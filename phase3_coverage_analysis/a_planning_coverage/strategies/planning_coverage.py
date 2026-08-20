@@ -240,8 +240,15 @@ class PlanningCoverageStrategy:
         self,
         example: ProblemExample,
     ) -> str:
+        starter_code_section = (
+            self._build_starter_code_section(
+                example.starter_code
+            )
+        )
+
         return self.plan_prompt_template.format(
             problem=example.problem,
+            starter_code_section=starter_code_section,
         ).strip()
 
     def build_code_prompt(
@@ -266,9 +273,7 @@ class PlanningCoverageStrategy:
         return self.code_prompt_template.format(
             problem=example.problem,
             plan=plan,
-            starter_code_section=(
-                starter_code_section
-            ),
+            starter_code_section=starter_code_section,
         ).strip()
 
     def run_candidate(
@@ -290,12 +295,10 @@ class PlanningCoverageStrategy:
                 )
             )
 
-        sample_seed = (
-            self._candidate_seed(
-                base_seed=self.base_seed,
-                problem_id=example.problem_id,
-                sample_id=sample_id,
-            )
+        sample_seed = candidate_seed(
+            base_seed=self.base_seed,
+            problem_id=example.problem_id,
+            sample_id=sample_id,
         )
 
         # ------------------------------------------------------

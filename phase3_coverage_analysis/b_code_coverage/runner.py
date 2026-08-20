@@ -1,7 +1,22 @@
 """
-실제 Best-of-N orchestration을 담당 : 문제 loop + candidate loop + parse/eval + JSONL logging + resume만 담당
+Phase 3-B Code Coverage runner.
+
+Responsibilities:
+- problem iteration
+- resume handling
+- fixed-plan lookup
+- candidate iteration
+- code parsing
+- exhaustive evaluation
+- candidate record construction
+- problem-level aggregation
+- JSONL logging
+- progress / summary reporting
+
+Code sampling remains inside CodeCoverageStrategy.
 """
-# phase3_coverage_analysis/a_planning_coverage/runner.py
+
+# phase3_coverage_analysis/b_code_coverage/runner.py
 
 from __future__ import annotations
 
@@ -10,23 +25,29 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from phase3_coverage_analysis.a_planning_coverage.candidate import (
+from phase3_coverage_analysis.b_code_coverage.candidate import (
     CandidateRecord,
     ProblemRecord,
     summarize_candidates,
 )
-from phase3_coverage_analysis.a_planning_coverage.strategies.planning_coverage import (
-    PlanningCoverageStrategy,
+from phase3_coverage_analysis.b_code_coverage.fixed_plan_loader import (
+    FixedPlanLoader,
+)
+from phase3_coverage_analysis.b_code_coverage.strategies.code_coverage import (
+    CodeCoverageStrategy,
 )
 
 from src.execution.evaluator import Evaluator
 from src.parsing.code_parser import CodeParser
-from src.schemas import EvaluationResult, ProblemExample
+from src.schemas import (
+    EvaluationResult,
+    ProblemExample,
+)
 from src.utils.jsonl_logger import JSONLLogger
 
 
 @dataclass
-class PlanningCoverageRunnerSummary:
+class CodeCoverageRunnerSummary:
     selected: int
     processed: int
     skipped: int
@@ -55,29 +76,20 @@ class PlanningCoverageRunnerSummary:
         )
 
 
-class PlanningCoverageRunner:
+class CodeCoverageRunner:
     """
-    Phase 3-A planning coverage runner.
+    Phase 3-B code coverage runner.
 
-    Responsibilities:
-    - problem iteration
-    - resume handling
-    - candidate iteration
-    - code parsing
-    - exhaustive evaluation
-    - candidate record construction
-    - problem-level aggregation
-    - JSONL logging
-    - progress / summary reporting
-
-    Plan sampling and plan-conditioned code generation
-    remain inside PlanningCoverageStrategy.
+    Each problem uses one fixed Phase 1 Self-Plan.
+    N code candidates are then sampled stochastically
+    from the same plan-conditioned code prompt.
     """
 
     def __init__(
         self,
         *,
-        strategy: PlanningCoverageStrategy,
+        strategy: CodeCoverageStrategy,
+        fixed_plan_loader: FixedPlanLoader,
         evaluator: Evaluator,
         parser: CodeParser,
         output_path: str | Path,
@@ -95,6 +107,10 @@ class PlanningCoverageRunner:
             )
 
         self.strategy = strategy
+        self.fixed_plan_loader = (
+            fixed_plan_loader
+        )
+
         self.evaluator = evaluator
         self.parser = parser
 
@@ -123,7 +139,38 @@ class PlanningCoverageRunner:
     def run(
         self,
         examples: list[ProblemExample],
-    ) -> PlanningCoverageRunnerSummary:
+    ) -> CodeCoverageRunnerSummary:
+        # ------------------------------------------------------
+        # Validate fixed plans before running generation.
+        # ------------------------------------------------------
+
+        validation = (
+            self.fixed_plan_loader.validate_examples(
+                examples,
+                require_exact_match=False,
+            )
+        )
+
+        self.fixed_plan_loader.validate_sequence(
+            examples
+        )
+
+        print(
+            "[Fixed Plans] "
+            f"loaded="
+            f"{len(self.fixed_plan_loader)}, "
+            f"matched="
+            f"{validation['matched']}, "
+            f"missing="
+            f"{validation['missing_plans']}, "
+            f"empty="
+            f"{validation['empty_plans']}"
+        )
+
+        # ------------------------------------------------------
+        # Resume
+        # ------------------------------------------------------
+
         completed_ids = (
             self.logger.completed_ids()
             if self.resume
@@ -146,6 +193,10 @@ class PlanningCoverageRunner:
 
         oracle_pass_count = 0
         candidate0_pass_count = 0
+
+        # ------------------------------------------------------
+        # Problem loop
+        # ------------------------------------------------------
 
         for index, example in enumerate(
             examples,
@@ -213,8 +264,12 @@ class PlanningCoverageRunner:
 
                 raise
 
+        # ------------------------------------------------------
+        # Summary
+        # ------------------------------------------------------
+
         summary = (
-            PlanningCoverageRunnerSummary(
+            CodeCoverageRunnerSummary(
                 selected=total_selected,
                 processed=processed_count,
                 skipped=skipped_count,
@@ -238,29 +293,83 @@ class PlanningCoverageRunner:
         example: ProblemExample,
     ) -> ProblemRecord:
         """
-        Run all N planning candidates for one problem.
+        Run all N stochastic code candidates
+        for one fixed Phase 1 Self-Plan.
         """
 
         # ------------------------------------------------------
-        # Build the shared planning prompt once.
+        # 1. Retrieve fixed Phase 1 self-plan
         # ------------------------------------------------------
 
-        plan_prompt = (
-            self.strategy.build_plan_prompt(
-                example
+        fixed_plan_record = (
+            self.fixed_plan_loader.get(
+                example.problem_id
             )
         )
+
+        fixed_plan = (
+            fixed_plan_record.plan.strip()
+        )
+
+        if not fixed_plan:
+            raise ValueError(
+                "Fixed plan must not be empty: "
+                f"{example.problem_id}"
+            )
+
+        # ------------------------------------------------------
+        # 2. Build shared code prompt once
+        #
+        # All N candidates must use the exact same
+        # problem + fixed-plan prompt.
+        # ------------------------------------------------------
+
+        code_prompt = (
+            self.strategy.build_code_prompt(
+                example=example,
+                fixed_plan=fixed_plan,
+            )
+        )
+
+        # ------------------------------------------------------
+        # Optional integrity check:
+        #
+        # Phase 3-B should reconstruct the same
+        # code prompt used by Phase 1 Self-Plan.
+        # ------------------------------------------------------
+
+        if (
+            fixed_plan_record.phase1_code_prompt
+            is not None
+        ):
+            phase1_prompt = (
+                fixed_plan_record
+                .phase1_code_prompt
+                .strip()
+            )
+
+            if (
+                code_prompt.strip()
+                != phase1_prompt
+            ):
+                raise ValueError(
+                    "Reconstructed Phase 3-B "
+                    "code prompt differs from "
+                    "Phase 1 Self-Plan prompt: "
+                    f"{example.problem_id}"
+                )
 
         candidates: list[
             CandidateRecord
         ] = []
 
         # ------------------------------------------------------
-        # Candidate sequence:
+        # 3. Candidate sequence
+        #
         # sample_id = 0 ... N-1
         #
-        # This order must remain fixed because prefix
-        # candidates are later interpreted as Oracle@k.
+        # Prefix candidates are later interpreted as
+        # Code Coverage@k.
         # ------------------------------------------------------
 
         for sample_id in range(
@@ -269,8 +378,9 @@ class PlanningCoverageRunner:
             candidate = (
                 self.run_candidate(
                     example=example,
+                    fixed_plan=fixed_plan,
                     sample_id=sample_id,
-                    plan_prompt=plan_prompt,
+                    code_prompt=code_prompt,
                 )
             )
 
@@ -281,6 +391,10 @@ class PlanningCoverageRunner:
             self._print_candidate(
                 candidate
             )
+
+        # ------------------------------------------------------
+        # 4. Problem-level summary
+        # ------------------------------------------------------
 
         summary = summarize_candidates(
             candidates
@@ -296,17 +410,12 @@ class PlanningCoverageRunner:
 
             title=example.title,
             platform=example.platform,
-            # contest_id=example.contest_id,            # 제거
             contest_date=example.contest_date,
             difficulty=example.difficulty,
 
             problem=example.problem,
 
-            plan_prompt=(
-                plan_prompt
-                if self.store_prompts
-                else ""
-            ),
+            fixed_plan=fixed_plan,
 
             candidates=[
                 candidate.to_dict()
@@ -340,26 +449,29 @@ class PlanningCoverageRunner:
         self,
         *,
         example: ProblemExample,
+        fixed_plan: str,
         sample_id: int,
-        plan_prompt: str,
+        code_prompt: str,
     ) -> CandidateRecord:
         """
-        Generate one plan/code candidate and evaluate it.
+        Generate one stochastic code candidate
+        and evaluate it.
         """
 
         candidate_output = (
             self.strategy.run_candidate(
                 example=example,
+                fixed_plan=fixed_plan,
                 sample_id=sample_id,
-                plan_prompt=plan_prompt,
+                code_prompt=code_prompt,
             )
         )
 
         # ------------------------------------------------------
-        # Empty plan
+        # Empty code generation
         # ------------------------------------------------------
 
-        if candidate_output.plan_empty:
+        if candidate_output.code_empty:
             return CandidateRecord(
                 sample_id=(
                     candidate_output.sample_id
@@ -368,43 +480,49 @@ class PlanningCoverageRunner:
                     candidate_output.sample_seed
                 ),
 
-                plan="",
                 code="",
 
                 passed=False,
-                status="EMPTY_PLAN",
+                status="EMPTY_CODE",
 
                 passed_tests=0,
                 total_tests=0,
                 test_pass_ratio=0.0,
 
-                plan_prompt_tokens=(
-                    candidate_output.plan_prompt_tokens
+                code_prompt_tokens=(
+                    candidate_output
+                    .code_prompt_tokens
                 ),
-                plan_completion_tokens=(
-                    candidate_output.plan_completion_tokens
+                code_completion_tokens=(
+                    candidate_output
+                    .code_completion_tokens
                 ),
-                plan_generation_time=(
-                    candidate_output.plan_generation_time
+                code_generation_time=(
+                    candidate_output
+                    .code_generation_time
                 ),
-
-                code_prompt_tokens=0,
-                code_completion_tokens=0,
-                code_generation_time=0.0,
 
                 execution_time=0.0,
 
-                plan_empty=True,
-                plan_in_code_prompt=False,
+                plan_in_code_prompt=(
+                    candidate_output
+                    .plan_in_code_prompt
+                ),
 
-                raw_output="",
+                raw_output=(
+                    candidate_output
+                    .code_raw_output
+                ),
 
                 error_message=(
-                    "Model produced an empty plan."
+                    "Model produced an empty "
+                    "code output."
                 ),
 
                 code_prompt=(
-                    None
+                    candidate_output.code_prompt
+                    if self.store_prompts
+                    else None
                 ),
 
                 test_results=[],
@@ -431,8 +549,7 @@ class PlanningCoverageRunner:
 
         else:
             # --------------------------------------------------
-            # Evaluate parsed code using the same evaluator
-            # used by Phase 1 / Phase 2.
+            # Exhaustive evaluation
             # --------------------------------------------------
 
             try:
@@ -478,9 +595,6 @@ class PlanningCoverageRunner:
                 candidate_output.sample_seed
             ),
 
-            plan=(
-                candidate_output.plan
-            ),
             code=(
                 parse_result.code
                 if (
@@ -507,37 +621,31 @@ class PlanningCoverageRunner:
                 test_pass_ratio
             ),
 
-            plan_prompt_tokens=(
-                candidate_output.plan_prompt_tokens
-            ),
-            plan_completion_tokens=(
-                candidate_output.plan_completion_tokens
-            ),
-            plan_generation_time=(
-                candidate_output.plan_generation_time
-            ),
-
             code_prompt_tokens=(
-                candidate_output.code_prompt_tokens
+                candidate_output
+                .code_prompt_tokens
             ),
             code_completion_tokens=(
-                candidate_output.code_completion_tokens
+                candidate_output
+                .code_completion_tokens
             ),
             code_generation_time=(
-                candidate_output.code_generation_time
+                candidate_output
+                .code_generation_time
             ),
 
             execution_time=(
                 evaluation.execution_time
             ),
 
-            plan_empty=False,
             plan_in_code_prompt=(
-                candidate_output.plan_in_code_prompt
+                candidate_output
+                .plan_in_code_prompt
             ),
 
             raw_output=(
-                candidate_output.code_raw_output
+                candidate_output
+                .code_raw_output
             ),
 
             error_message=(
@@ -566,8 +674,8 @@ class PlanningCoverageRunner:
         error_message: str,
     ) -> EvaluationResult:
         """
-        Create a synthetic evaluation result for failures
-        occurring outside the evaluator.
+        Create a synthetic evaluation result for
+        failures occurring outside the evaluator.
         """
 
         return EvaluationResult(
@@ -597,7 +705,9 @@ class PlanningCoverageRunner:
     @staticmethod
     def _serialize_test_results(
         test_results: list[Any],
-    ) -> list[dict[str, Any]]:
+    ) -> list[
+        dict[str, Any]
+    ]:
         serialized: list[
             dict[str, Any]
         ] = []
@@ -682,11 +792,6 @@ class PlanningCoverageRunner:
     def _print_candidate(
         candidate: CandidateRecord,
     ) -> None:
-        generation_time = (
-            candidate.plan_generation_time
-            + candidate.code_generation_time
-        )
-
         print(
             f"  [sample "
             f"{candidate.sample_id}] "
@@ -698,10 +803,10 @@ class PlanningCoverageRunner:
             f"{candidate.test_pass_ratio:.3f} "
             f"passed="
             f"{candidate.passed} "
-            f"plan_tok="
-            f"{candidate.plan_completion_tokens} "
+            f"code_tok="
+            f"{candidate.code_completion_tokens} "
             f"time="
-            f"{generation_time:.1f}s"
+            f"{candidate.code_generation_time:.1f}s"
         )
 
     def _print_problem_result(
@@ -712,31 +817,31 @@ class PlanningCoverageRunner:
             record.candidates
         )
 
-        distinct_plans = len(
+        distinct_codes = len(
             {
                 str(
                     candidate.get(
-                        "plan",
+                        "code",
                         "",
                     )
                 ).strip()
                 for candidate in candidates
                 if str(
                     candidate.get(
-                        "plan",
+                        "code",
                         "",
                     )
                 ).strip()
             }
         )
 
-        empty_plans = sum(
-            bool(
+        empty_codes = sum(
+            not str(
                 candidate.get(
-                    "plan_empty",
-                    False,
+                    "code",
+                    "",
                 )
-            )
+            ).strip()
             for candidate in candidates
         )
 
@@ -749,23 +854,23 @@ class PlanningCoverageRunner:
             f"{record.num_samples} | "
             f"best_ratio="
             f"{record.best_test_pass_ratio:.3f} | "
-            f"distinct_plans="
-            f"{distinct_plans}/"
+            f"distinct_codes="
+            f"{distinct_codes}/"
             f"{record.num_samples} | "
-            f"empty_plans="
-            f"{empty_plans} | "
+            f"empty_codes="
+            f"{empty_codes} | "
             f"gen_time="
             f"{record.total_generation_time:.1f}s"
         )
 
     def _print_summary(
         self,
-        summary: PlanningCoverageRunnerSummary,
+        summary: CodeCoverageRunnerSummary,
     ) -> None:
         print()
         print("=" * 80)
         print(
-            "Phase 3-A Experiment Summary"
+            "Phase 3-B Experiment Summary"
         )
         print("=" * 80)
 

@@ -1,8 +1,19 @@
 """
-Phase 3만 필요한 candidate-level schema를 둔다.
+Phase 3-B Code Coverage에서 필요한
+candidate-level / problem-level schema를 정의한다.
+
+Phase 3-A:
+    sampled plan -> greedy code
+
+Phase 3-B:
+    fixed Phase-1 self-plan -> sampled code
+
+따라서 Phase 3-B의 candidate는
+plan-generation cost를 포함하지 않고,
+code-generation 및 execution 결과만 기록한다.
 """
 
-# phase3_coverage_analysis/a_planning_coverage/candidate.py
+# phase3_coverage_analysis/b_code_coverage/candidate.py
 
 from __future__ import annotations
 
@@ -20,6 +31,14 @@ def candidate_seed(
     problem_id: str,
     sample_id: int,
 ) -> int:
+    """
+    Return a deterministic seed for one code candidate.
+
+    The same
+        (base_seed, problem_id, sample_id)
+    always produces the same seed.
+    """
+
     if sample_id < 0:
         raise ValueError(
             "sample_id must be non-negative."
@@ -44,10 +63,14 @@ def candidate_seed(
 
 @dataclass
 class CandidateRecord:
+    """
+    One stochastic code candidate generated
+    from the fixed plan.
+    """
+
     sample_id: int
     sample_seed: int
 
-    plan: str
     code: str
 
     passed: bool
@@ -56,17 +79,12 @@ class CandidateRecord:
     total_tests: int
     test_pass_ratio: float
 
-    plan_prompt_tokens: int = 0
-    plan_completion_tokens: int = 0
-    plan_generation_time: float = 0.0
-
     code_prompt_tokens: int = 0
     code_completion_tokens: int = 0
     code_generation_time: float = 0.0
 
     execution_time: float = 0.0
 
-    plan_empty: bool = False
     plan_in_code_prompt: bool = False
 
     raw_output: str = ""
@@ -90,6 +108,13 @@ class CandidateRecord:
 
 @dataclass
 class ProblemRecord:
+    """
+    Aggregated Phase 3-B result for one problem.
+
+    All candidates share the same fixed Phase-1
+    self-generated plan.
+    """
+
     problem_id: str
     dataset: str
     strategy: str
@@ -99,12 +124,13 @@ class ProblemRecord:
 
     title: str
     platform: str | None
-    # contest_id: str | None                # 제거
     contest_date: str | None
     difficulty: str | None
 
     problem: str
-    plan_prompt: str
+
+    # Phase 1 Self-Plan에서 가져온 고정 plan.
+    fixed_plan: str
 
     candidates: list[
         dict[str, Any]
@@ -132,6 +158,11 @@ def summarize_candidates(
         CandidateRecord
     ],
 ) -> dict[str, Any]:
+    """
+    Summarize N stochastic code candidates
+    generated from the same fixed plan.
+    """
+
     if not candidates:
         return {
             "any_passed": False,
@@ -155,13 +186,11 @@ def summarize_candidates(
             for candidate in candidates
         ),
         "total_generation_time": sum(
-            candidate.plan_generation_time
-            + candidate.code_generation_time
+            candidate.code_generation_time
             for candidate in candidates
         ),
         "total_completion_tokens": sum(
-            candidate.plan_completion_tokens
-            + candidate.code_completion_tokens
+            candidate.code_completion_tokens
             for candidate in candidates
         ),
     }
