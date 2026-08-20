@@ -7,6 +7,9 @@
 1. 평가 프로토콜 : Official evaluator vs Diagnostic evaluator 
 - LiveCodeBench의 기본 평가 구현은 실패가 확인되면 나머지 테스트의 실행을 조기에 종료할 수 있다. 본 연구에서는 문제 단위 정답 판정 기준은 유지하면서, 실패한 생성물의 부분적 정확성과 refinement dynamics를 분석하기 위해 모든 테스트 케이스를 실행하였다. 모든 테스트를 통과한 경우에만 해당 문제를 성공으로 판정하였다.
 
+2. Phase1-3와 Phase4의 LiveCodeBench evaluator가 서로 다름.   
+- Phase 4 training reward만 DeepCoder semantics에 고정함.
+
 
 연구는 다음 세 단계로 진행된다.(Phase1-3은 inference experiment framework, Phase 4는 RL training framework)
 ```

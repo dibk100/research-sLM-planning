@@ -113,6 +113,15 @@ phase4_method_discovery/
 ├── sample_log/
 │
 └── README.md
+
+src/execution/
+├── livecodebench_evaluator.py      # Phase 1-3 그대로
+├── taco_evaluator.py               # 아래 코드
+│
+└── deepcoder/
+    ├── __init__.py
+    ├── livecodebench.py            # rLLM에서 복사
+    └── utils.py                    # rLLM에서 복사
 ```
 
 기록 : 각 rollout마다
