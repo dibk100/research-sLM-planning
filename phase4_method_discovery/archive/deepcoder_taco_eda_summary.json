@@ -1,0 +1,70 @@
+{
+  "num_examples": 7436,
+  "missing": {
+    "problem": 0,
+    "tests": 0,
+    "solutions": 0
+  },
+  "tests": {
+    "parse_methods": {
+      "json": 7436
+    },
+    "parse_failures": 0,
+    "structures": {
+      "stdin_like": 6387,
+      "functional_like": 1049
+    },
+    "count_distribution": {
+      "count": 7436,
+      "min": 6,
+      "p25": 72.0,
+      "median": 102.0,
+      "mean": 104.07732651963421,
+      "p75": 124.0,
+      "p90": 190.0,
+      "p95": 212.0,
+      "max": 1440
+    },
+    "zero_test_problems": 0
+  },
+  "solutions": {
+    "parse_methods": {
+      "native": 7436
+    },
+    "parse_failures": 0,
+    "count_distribution": {
+      "count": 7436,
+      "min": 1,
+      "p25": 8.0,
+      "median": 31.0,
+      "mean": 115.90478752017214,
+      "p75": 121.0,
+      "p90": 247.0,
+      "p95": 445.25,
+      "max": 6376
+    },
+    "zero_solution_problems": 0,
+    "length_distribution": {
+      "count": 861868,
+      "min": 9,
+      "p25": 172.0,
+      "median": 254.0,
+      "mean": 381.3722623417971,
+      "p75": 399.0,
+      "p90": 646.0,
+      "p95": 933.0,
+      "max": 617809
+    }
+  },
+  "problem_length_chars": {
+    "count": 7436,
+    "min": 29,
+    "p25": 1002.0,
+    "median": 1509.0,
+    "mean": 1607.929532006455,
+    "p75": 2064.25,
+    "p90": 2650.5,
+    "p95": 3096.0,
+    "max": 7230
+  }
+}
