@@ -1,0 +1,40 @@
+# phase4_method_discovery/vanilla_planning_rlvr/configs/vanilla_planning_rlvr_qwen25coder3b.yaml
+experiment:
+  name: vanilla_planning_rlvr_qwen25coder3b
+  seed: 42
+
+planner:
+  model_path: Qwen/Qwen2.5-Coder-3B-Instruct
+
+  generation:
+    group_size: 4
+    max_new_tokens: 512
+    temperature: 1.0
+    top_p: 1.0
+    do_sample: true
+
+coder:
+  model_path: Qwen/Qwen2.5-Coder-3B-Instruct
+  frozen: true
+  dtype: bfloat16
+
+  generation:
+    max_new_tokens: 1024
+    temperature: 0.0
+    top_p: 1.0
+    do_sample: false
+
+grpo:
+  advantage_estimator: grpo
+  use_kl_loss: false
+  use_kl_reward: false
+
+reward:
+  type: binary_execution
+  max_tests: 15
+  timeout_seconds: 6
+  num_workers: 1
+
+data:
+  train_path: /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/train.parquet
+  val_path: /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/val.parquet
