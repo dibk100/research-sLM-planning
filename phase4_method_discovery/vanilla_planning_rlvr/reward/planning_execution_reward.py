@@ -1,18 +1,18 @@
 # phase4_method_discovery/vanilla_planning_rlvr/reward/planning_execution_reward.py
+
 from __future__ import annotations
 
 import copy
 import json
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import ray
+from omegaconf import OmegaConf
+
 from src.execution.taco_evaluator import (
     TACOEvaluator,
-)
-from src.models.generator import (
-    ModelGenerator,
 )
 from src.parsing.code_parser import (
     CodeParser,
@@ -23,23 +23,55 @@ from src.schemas import (
 
 
 # ======================================================================
-# Runtime state
+# Paths
 # ======================================================================
 
-_FROZEN_CODER: ModelGenerator | None = None
+THIS_FILE = Path(__file__).resolve()
+
+PROJECT_ROOT = THIS_FILE.parents[3]
+
+DEFAULT_EXPERIMENT_CONFIG_PATH = (
+    PROJECT_ROOT
+    / "phase4_method_discovery"
+    / "vanilla_planning_rlvr"
+    / "configs"
+    / "vanilla_planning_rlvr_qwen25coder3b.yaml"
+)
+
+DEFAULT_CODE_PROMPT_PATH = (
+    PROJECT_ROOT
+    / "prompt_templates"
+    / "self_plan_code.txt"
+)
+
+
+# ======================================================================
+# Process-local CPU reward runtime
+# ======================================================================
+#
+# Important:
+#
+# The frozen coder model is NOT stored here anymore.
+#
+# It lives in:
+#
+#   FrozenCoderWorker
+#
+# as a separate GPU Ray actor.
+#
+# The objects below are lightweight CPU-side objects and are created
+# lazily once in each RewardLoopWorker process.
+# ======================================================================
+
 _CODE_PARSER: CodeParser | None = None
+
 _EVALUATOR: TACOEvaluator | None = None
+
 _CODE_PROMPT_TEMPLATE: str | None = None
 
-_CODER_MAX_NEW_TOKENS: int = 1024
-_CODER_TEMPERATURE: float = 0.0
-_CODER_TOP_P: float = 1.0
+_MAX_REWARD_TESTS: int | None = None
 
-# DeepCoder training recipe:
-# use at most 15 challenging tests for reward computation.
-#
-# Set to None to evaluate all available tests.
-_MAX_REWARD_TESTS: int | None = 15
+_RUNTIME_INITIALIZED: bool = False
 
 
 # ======================================================================
@@ -51,13 +83,9 @@ class PlanningRewardResult:
     """
     Detailed result for one Vanilla Planning-RLVR trajectory.
 
-    Only `reward` is required by GRPO.
+    GRPO consumes only `reward`.
 
-    The remaining fields are retained for:
-    - rollout logging
-    - credit-assignment analysis
-    - failure analysis
-    - token-level analysis after verl integration
+    The remaining fields are useful for rollout diagnostics.
     """
 
     reward: float
@@ -72,6 +100,9 @@ class PlanningRewardResult:
     passed: bool
     status: str
 
+    available_tests: int
+    reward_tests: int
+
     passed_tests: int
     total_tests: int
 
@@ -81,150 +112,123 @@ class PlanningRewardResult:
     coder_completion_tokens: int = 0
     coder_generation_time: float = 0.0
 
-    available_tests: int = 0
-    reward_tests: int = 0
-
     error_message: str | None = None
 
 
 # ======================================================================
-# Runtime initialization
+# CPU runtime initialization
 # ======================================================================
 
-def initialize_reward_runtime(
-    *,
-    frozen_coder: ModelGenerator,
-    code_prompt_path: str | Path,
-    timeout_seconds: int = 6,
-    debug: bool = False,
-    coder_max_new_tokens: int = 1024,
-    coder_temperature: float = 0.0,
-    coder_top_p: float = 1.0,
-    max_reward_tests: int | None = 15,
-) -> None:
+def _initialize_cpu_runtime() -> None:
     """
-    Initialize reusable Phase 4 reward components.
+    Initialize lightweight reward-side components once per
+    RewardLoopWorker process.
 
-    Must normally be called once per reward worker/process.
-
-    Important
-    ---------
-    The frozen coder must NOT be reloaded inside compute_score().
-
-    Parameters
-    ----------
-    frozen_coder:
-        Frozen downstream code generator.
-
-    code_prompt_path:
-        self_plan_code.txt or compatible template.
-
-    max_reward_tests:
-        Maximum number of TACO tests used to compute one rollout reward.
-
-        Default = 15, following the DeepCoder training recipe.
-
-        If a problem contains more than this number, tests with the
-        longest serialized inputs are selected.
-
-        Set None to evaluate all tests.
+    This function does NOT load any language model.
     """
 
-    global _FROZEN_CODER
     global _CODE_PARSER
     global _EVALUATOR
     global _CODE_PROMPT_TEMPLATE
-
-    global _CODER_MAX_NEW_TOKENS
-    global _CODER_TEMPERATURE
-    global _CODER_TOP_P
     global _MAX_REWARD_TESTS
+    global _RUNTIME_INITIALIZED
 
-    if not isinstance(
-        frozen_coder,
-        ModelGenerator,
-    ):
-        raise TypeError(
-            "frozen_coder must be ModelGenerator, "
-            f"got {type(frozen_coder).__name__}"
+    if _RUNTIME_INITIALIZED:
+        return
+
+    # ------------------------------------------------------------------
+    # 1. Load research configuration
+    # ------------------------------------------------------------------
+
+    if not DEFAULT_EXPERIMENT_CONFIG_PATH.exists():
+        raise FileNotFoundError(
+            "Planning-RLVR config not found: "
+            f"{DEFAULT_EXPERIMENT_CONFIG_PATH}"
         )
 
-    prompt_path = Path(
-        code_prompt_path
+    config = OmegaConf.load(
+        DEFAULT_EXPERIMENT_CONFIG_PATH
     )
 
-    if not prompt_path.exists():
+    # ------------------------------------------------------------------
+    # 2. Reward settings
+    # ------------------------------------------------------------------
+
+    reward_cfg = config.reward
+
+    if str(
+        reward_cfg.type
+    ) != "binary_execution":
+        raise ValueError(
+            "Planning-RLVR requires "
+            "reward.type=binary_execution, "
+            f"got {reward_cfg.type!r}."
+        )
+
+    max_reward_tests = int(
+        reward_cfg.max_tests
+    )
+
+    if max_reward_tests <= 0:
+        raise ValueError(
+            "reward.max_tests must be > 0."
+        )
+
+    timeout_seconds = int(
+        reward_cfg.timeout_seconds
+    )
+
+    if timeout_seconds <= 0:
+        raise ValueError(
+            "reward.timeout_seconds must be > 0."
+        )
+
+    # ------------------------------------------------------------------
+    # 3. Code prompt
+    # ------------------------------------------------------------------
+
+    if not DEFAULT_CODE_PROMPT_PATH.exists():
         raise FileNotFoundError(
-            f"Code prompt template not found: "
-            f"{prompt_path}"
+            "Self-plan code prompt not found: "
+            f"{DEFAULT_CODE_PROMPT_PATH}"
         )
 
-    if coder_max_new_tokens <= 0:
-        raise ValueError(
-            "coder_max_new_tokens must be > 0."
-        )
-
-    if coder_temperature < 0:
-        raise ValueError(
-            "coder_temperature must be >= 0."
-        )
-
-    if not 0 < coder_top_p <= 1:
-        raise ValueError(
-            "coder_top_p must be in (0, 1]."
-        )
-
-    if (
-        max_reward_tests is not None
-        and max_reward_tests <= 0
-    ):
-        raise ValueError(
-            "max_reward_tests must be > 0 or None."
-        )
-
-    _FROZEN_CODER = frozen_coder
-
-    _CODE_PROMPT_TEMPLATE = (
-        prompt_path.read_text(
+    code_prompt_template = (
+        DEFAULT_CODE_PROMPT_PATH.read_text(
             encoding="utf-8",
         )
     )
 
-    if not _CODE_PROMPT_TEMPLATE.strip():
+    if not code_prompt_template.strip():
         raise ValueError(
             "Code prompt template is empty."
         )
+
+    # ------------------------------------------------------------------
+    # 4. Parser / evaluator
+    # ------------------------------------------------------------------
 
     _CODE_PARSER = CodeParser()
 
     _EVALUATOR = TACOEvaluator(
         timeout_seconds=timeout_seconds,
-        debug=debug,
+        debug=False,
     )
 
-    _CODER_MAX_NEW_TOKENS = (
-        coder_max_new_tokens
-    )
-
-    _CODER_TEMPERATURE = (
-        coder_temperature
-    )
-
-    _CODER_TOP_P = (
-        coder_top_p
+    _CODE_PROMPT_TEMPLATE = (
+        code_prompt_template
     )
 
     _MAX_REWARD_TESTS = (
         max_reward_tests
     )
 
+    _RUNTIME_INITIALIZED = True
 
-def _ensure_runtime_initialized() -> None:
-    if _FROZEN_CODER is None:
-        raise RuntimeError(
-            "Frozen coder is not initialized. "
-            "Call initialize_reward_runtime(...) first."
-        )
+
+def _ensure_cpu_runtime() -> None:
+    if not _RUNTIME_INITIALIZED:
+        _initialize_cpu_runtime()
 
     if _CODE_PARSER is None:
         raise RuntimeError(
@@ -241,121 +245,231 @@ def _ensure_runtime_initialized() -> None:
             "Code prompt template is not initialized."
         )
 
+    if _MAX_REWARD_TESTS is None:
+        raise RuntimeError(
+            "Reward test limit is not initialized."
+        )
+
 
 # ======================================================================
 # Prompt construction
 # ======================================================================
 
-def _build_starter_code_section(
-    starter_code: str,
-) -> str:
-    if not isinstance(
-        starter_code,
-        str,
-    ):
-        raise TypeError(
-            "starter_code must be str."
-        )
-
-    if not starter_code.strip():
-        return ""
-
-    return (
-        "\n\nStarter Code:\n"
-        f"{starter_code.strip()}"
-    )
-
-
 def build_code_prompt(
     *,
-    problem: ProblemExample,
+    problem_text: str,
     plan: str,
 ) -> str:
     """
-    Build the plan-conditioned code-generation prompt used by
-    the frozen coder.
+    Build the same Self-Plan -> Code prompt used by the existing
+    planning pipeline.
 
-    Supported template placeholders:
+    Required template placeholders:
+
         {problem}
-        {title}
         {plan}
-        {starter_code}
-        {starter_code_section}
     """
 
-    _ensure_runtime_initialized()
+    _ensure_cpu_runtime()
 
     if not isinstance(
-        problem,
-        ProblemExample,
+        problem_text,
+        str,
     ):
         raise TypeError(
-            "problem must be ProblemExample."
+            "problem_text must be str, "
+            f"got {type(problem_text).__name__}."
         )
 
-    if not problem.problem.strip():
+    if not problem_text.strip():
         raise ValueError(
-            "problem.problem must not be empty."
+            "problem_text must not be empty."
         )
 
-    if (
-        not isinstance(plan, str)
-        or not plan.strip()
+    if not isinstance(
+        plan,
+        str,
     ):
+        raise TypeError(
+            "plan must be str, "
+            f"got {type(plan).__name__}."
+        )
+
+    if not plan.strip():
         raise ValueError(
-            "plan must be a non-empty string."
+            "plan must not be empty."
         )
 
-    assert _CODE_PROMPT_TEMPLATE is not None
-
-    starter_code_section = (
-        _build_starter_code_section(
-            problem.starter_code
-        )
+    assert (
+        _CODE_PROMPT_TEMPLATE
+        is not None
     )
 
     try:
         prompt = (
             _CODE_PROMPT_TEMPLATE.format(
-                problem=problem.problem,
-                title=problem.title,
+                problem=problem_text,
                 plan=plan,
-                starter_code=(
-                    problem.starter_code
-                ),
-                starter_code_section=(
-                    starter_code_section
-                ),
             )
         )
 
     except KeyError as exc:
         raise KeyError(
             "Code prompt template placeholder mismatch. "
-            "Supported placeholders: "
-            "{problem}, {title}, {plan}, "
-            "{starter_code}, {starter_code_section}. "
-            f"Missing placeholder: {exc}"
+            "Expected {problem} and {plan}. "
+            f"Missing key: {exc}"
         ) from exc
 
-    prompt = prompt.strip()
-
-    if not prompt:
-        raise ValueError(
-            "Built code prompt is empty."
+    if not prompt.strip():
+        raise RuntimeError(
+            "Constructed code prompt is empty."
         )
 
     return prompt
 
 
 # ======================================================================
-# Frozen coder generation
+# DeepCoder reward-test sampling
 # ======================================================================
 
-def _generate_code_output(
-    *,
+def _test_input_length(
+    test_input: Any,
+) -> int:
+    """
+    Compute a stable input-length proxy for DeepCoder-style
+    hardest-test selection.
+
+    DeepCoder samples tests with the longest input strings.
+
+    TACO stdin inputs are not guaranteed to be plain strings, so:
+      - str       -> direct string length
+      - list      -> newline-joined representation
+      - otherwise -> string representation
+    """
+
+    if isinstance(
+        test_input,
+        str,
+    ):
+        return len(
+            test_input
+        )
+
+    if isinstance(
+        test_input,
+        list,
+    ):
+        text = "\n".join(
+            str(item)
+            for item in test_input
+        )
+
+        return len(
+            text
+        )
+
+    return len(
+        str(
+            test_input
+        )
+    )
+
+
+def select_reward_tests(
     problem: ProblemExample,
-    plan: str,
+    *,
+    max_tests: int,
+) -> ProblemExample:
+    """
+    Select the DeepCoder-style reward subset.
+
+    Policy:
+        choose up to `max_tests` tests with the longest inputs.
+
+    The returned ProblemExample is a copy.
+    The original dataset object is never modified.
+    """
+
+    if not isinstance(
+        problem,
+        ProblemExample,
+    ):
+        raise TypeError(
+            "problem must be ProblemExample, "
+            f"got {type(problem).__name__}."
+        )
+
+    if max_tests <= 0:
+        raise ValueError(
+            "max_tests must be > 0."
+        )
+
+    private_tests = list(
+        problem.private_tests
+    )
+
+    if not private_tests:
+        return copy.deepcopy(
+            problem
+        )
+
+    if len(
+        private_tests
+    ) <= max_tests:
+        return copy.deepcopy(
+            problem
+        )
+
+    ranked_tests = sorted(
+        enumerate(
+            private_tests
+        ),
+        key=lambda pair: (
+            -_test_input_length(
+                pair[1].get(
+                    "input",
+                    "",
+                )
+            ),
+            pair[0],
+        ),
+    )
+
+    selected_indices = [
+        index
+        for index, _
+        in ranked_tests[
+            :max_tests
+        ]
+    ]
+
+    # Preserve deterministic ranking order used for selection.
+    selected_tests = [
+        copy.deepcopy(
+            private_tests[index]
+        )
+        for index in selected_indices
+    ]
+
+    reward_problem = copy.deepcopy(
+        problem
+    )
+
+    reward_problem.private_tests = (
+        selected_tests
+    )
+
+    return reward_problem
+
+
+# ======================================================================
+# Frozen coder RPC
+# ======================================================================
+
+def _generate_code_via_rpc(
+    *,
+    frozen_coder_handle: Any,
+    prompt: str,
 ) -> tuple[
     str,
     int,
@@ -363,43 +477,61 @@ def _generate_code_output(
     float,
 ]:
     """
-    Generate one plan-conditioned code completion.
+    Request one deterministic completion from FrozenCoderWorker.
 
-    Returns
-    -------
-    raw_output
-    prompt_tokens
-    completion_tokens
-    generation_time
+    FrozenCoderWorker.generate_code() returns:
+
+        {
+            "text": str,
+            "prompt_tokens": int,
+            "completion_tokens": int,
+            "generation_time": float,
+        }
     """
 
-    _ensure_runtime_initialized()
+    if frozen_coder_handle is None:
+        raise ValueError(
+            "frozen_coder_handle is required."
+        )
 
-    prompt = build_code_prompt(
-        problem=problem,
-        plan=plan,
-    )
+    if not isinstance(
+        prompt,
+        str,
+    ) or not prompt.strip():
+        raise ValueError(
+            "prompt must be a non-empty string."
+        )
 
-    assert _FROZEN_CODER is not None
-
-    generation = (
-        _FROZEN_CODER.generate(
-            prompt,
-            max_new_tokens=(
-                _CODER_MAX_NEW_TOKENS
-            ),
-            temperature=(
-                _CODER_TEMPERATURE
-            ),
-            top_p=(
-                _CODER_TOP_P
-            ),
+    response = ray.get(
+        frozen_coder_handle
+        .generate_code
+        .remote(
+            prompt
         )
     )
 
-    raw_output = (
-        generation.text
+    if not isinstance(
+        response,
+        dict,
+    ):
+        raise TypeError(
+            "FrozenCoderWorker.generate_code() "
+            "must return dict, "
+            f"got {type(response).__name__}."
+        )
+
+    raw_output = response.get(
+        "text"
     )
+
+    if not isinstance(
+        raw_output,
+        str,
+    ):
+        raise TypeError(
+            "Frozen coder response['text'] "
+            "must be str."
+        )
 
     if not raw_output.strip():
         raise RuntimeError(
@@ -408,244 +540,57 @@ def _generate_code_output(
 
     return (
         raw_output,
-        generation.prompt_tokens,
-        generation.completion_tokens,
-        generation.generation_time,
-    )
-
-
-# ======================================================================
-# DeepCoder-style reward-test selection
-# ======================================================================
-
-def _serialized_input_length(
-    test_case: dict[str, Any],
-) -> int:
-    """
-    Compute a stable input-length proxy for DeepCoder-style
-    challenging-test selection.
-
-    TACO stdin inputs can be:
-    - str
-    - list[str]
-    - other JSON-compatible values
-
-    We therefore preserve the original representation while using
-    its serialized length only for ranking.
-    """
-
-    value = test_case.get(
-        "input"
-    )
-
-    if isinstance(value, str):
-        return len(value)
-
-    try:
-        serialized = json.dumps(
-            value,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
-
-    except (TypeError, ValueError):
-        serialized = str(
-            value
-        )
-
-    return len(
-        serialized
-    )
-
-
-def select_reward_problem(
-    problem: ProblemExample,
-    *,
-    max_tests: int | None,
-) -> ProblemExample:
-    """
-    Create the ProblemExample used specifically for reward execution.
-
-    The original problem is NOT modified.
-
-    If max_tests is None or the problem already contains <= max_tests
-    private tests, the original problem object is returned.
-
-    Otherwise, the tests with the longest inputs are selected.
-
-    This keeps dataset storage and exhaustive sanity evaluation separate
-    from rollout-time reward computation.
-    """
-
-    if not isinstance(
-        problem,
-        ProblemExample,
-    ):
-        raise TypeError(
-            "problem must be ProblemExample."
-        )
-
-    if max_tests is None:
-        return problem
-
-    if max_tests <= 0:
-        raise ValueError(
-            "max_tests must be > 0 or None."
-        )
-
-    tests = (
-        problem.private_tests
-    )
-
-    if len(tests) <= max_tests:
-        return problem
-
-    indexed_tests = list(
-        enumerate(tests)
-    )
-
-    ranked = sorted(
-        indexed_tests,
-        key=lambda pair: (
-            _serialized_input_length(
-                pair[1]
-            ),
-            -pair[0],
+        int(
+            response.get(
+                "prompt_tokens",
+                0,
+            )
         ),
-        reverse=True,
-    )
-
-    selected = [
-        test_case
-        for _, test_case
-        in ranked[:max_tests]
-    ]
-
-    # Prevent reward-time modification from touching the
-    # original dataset object.
-    reward_problem = copy.copy(
-        problem
-    )
-
-    reward_problem.private_tests = (
-        selected
-    )
-
-    return reward_problem
-
-
-# ======================================================================
-# Common error result
-# ======================================================================
-
-def _failure_result(
-    *,
-    problem: ProblemExample,
-    plan: str,
-    status: str,
-    error_message: str | None,
-    raw_code_output: str = "",
-    generated_code: str = "",
-    code_extraction_method: str = "none",
-    coder_prompt_tokens: int = 0,
-    coder_completion_tokens: int = 0,
-    coder_generation_time: float = 0.0,
-    available_tests: int | None = None,
-    reward_tests: int = 0,
-) -> PlanningRewardResult:
-    if available_tests is None:
-        available_tests = len(
-            problem.private_tests
-        )
-
-    return PlanningRewardResult(
-        reward=0.0,
-
-        problem_id=(
-            problem.problem_id
+        int(
+            response.get(
+                "completion_tokens",
+                0,
+            )
         ),
-
-        plan=(
-            plan
-            if isinstance(plan, str)
-            else ""
-        ),
-
-        raw_code_output=(
-            raw_code_output
-        ),
-
-        generated_code=(
-            generated_code
-        ),
-
-        code_extraction_method=(
-            code_extraction_method
-        ),
-
-        passed=False,
-        status=status,
-
-        passed_tests=0,
-        total_tests=0,
-
-        execution_time=0.0,
-
-        coder_prompt_tokens=(
-            coder_prompt_tokens
-        ),
-
-        coder_completion_tokens=(
-            coder_completion_tokens
-        ),
-
-        coder_generation_time=(
-            coder_generation_time
-        ),
-
-        available_tests=(
-            available_tests
-        ),
-
-        reward_tests=(
-            reward_tests
-        ),
-
-        error_message=(
-            error_message
+        float(
+            response.get(
+                "generation_time",
+                0.0,
+            )
         ),
     )
 
 
 # ======================================================================
-# Core Planning-RLVR reward trajectory
+# Core reward trajectory
 # ======================================================================
 
 def compute_planning_execution_reward(
     *,
     problem: ProblemExample,
+    problem_text: str,
     plan: str,
+    frozen_coder_handle: Any,
 ) -> PlanningRewardResult:
     """
     Execute one Vanilla Planning-RLVR trajectory.
 
-        problem x
+        problem
             ->
-        planner-generated plan P
+        planner-generated plan
             ->
-        frozen coder C ~ pi_coder(C | x, P)
+        FrozenCoderWorker RPC
+            ->
+        generated code
             ->
         CodeParser
             ->
-        DeepCoder/rLLM-compatible TACO execution
+        DeepCoder/rLLM-compatible TACO evaluator
             ->
-        R(C) in {0, 1}
-
-    Only the planner is intended to be optimized by RL.
-    The code generator is frozen.
+        binary execution reward {0, 1}
     """
 
-    _ensure_runtime_initialized()
+    _ensure_cpu_runtime()
 
     if not isinstance(
         problem,
@@ -653,26 +598,7 @@ def compute_planning_execution_reward(
     ):
         raise TypeError(
             "problem must be ProblemExample, "
-            f"got {type(problem).__name__}"
-        )
-
-    if (
-        problem.dataset
-        != "deepcoder_taco"
-    ):
-        raise ValueError(
-            "Vanilla Planning-RLVR reward currently "
-            "supports deepcoder_taco only, got "
-            f"{problem.dataset!r}."
-        )
-
-    if (
-        problem.evaluation_type
-        != "stdin"
-    ):
-        raise ValueError(
-            "Vanilla Planning-RLVR currently supports "
-            "TACO stdin problems only."
+            f"got {type(problem).__name__}."
         )
 
     available_tests = len(
@@ -680,31 +606,93 @@ def compute_planning_execution_reward(
     )
 
     # ------------------------------------------------------------------
-    # 1. Validate planner response
+    # 1. Validate plan
     # ------------------------------------------------------------------
 
     if (
-        not isinstance(plan, str)
+        not isinstance(
+            plan,
+            str,
+        )
         or not plan.strip()
     ):
-        return _failure_result(
-            problem=problem,
+        return PlanningRewardResult(
+            reward=0.0,
+
+            problem_id=(
+                problem.problem_id
+            ),
+
             plan=(
                 plan
-                if isinstance(plan, str)
+                if isinstance(
+                    plan,
+                    str,
+                )
                 else ""
             ),
+
+            raw_code_output="",
+            generated_code="",
+            code_extraction_method="none",
+
+            passed=False,
             status="EMPTY_PLAN",
-            error_message=(
-                "Generated plan is empty."
-            ),
+
             available_tests=(
                 available_tests
+            ),
+            reward_tests=0,
+
+            passed_tests=0,
+            total_tests=0,
+
+            execution_time=0.0,
+
+            error_message=(
+                "Generated plan is empty."
             ),
         )
 
     # ------------------------------------------------------------------
-    # 2. Frozen plan-conditioned code generation
+    # 2. Build code-generation prompt
+    # ------------------------------------------------------------------
+
+    try:
+        coder_prompt = build_code_prompt(
+            problem_text=problem_text,
+            plan=plan,
+        )
+
+    except Exception as exc:
+        return PlanningRewardResult(
+            reward=0.0,
+            problem_id=problem.problem_id,
+            plan=plan,
+
+            raw_code_output="",
+            generated_code="",
+            code_extraction_method="none",
+
+            passed=False,
+            status="CODE_PROMPT_ERROR",
+
+            available_tests=available_tests,
+            reward_tests=0,
+
+            passed_tests=0,
+            total_tests=0,
+
+            execution_time=0.0,
+
+            error_message=(
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # 3. Frozen coder RPC
     # ------------------------------------------------------------------
 
     try:
@@ -713,32 +701,48 @@ def compute_planning_execution_reward(
             coder_prompt_tokens,
             coder_completion_tokens,
             coder_generation_time,
-        ) = _generate_code_output(
-            problem=problem,
-            plan=plan,
+        ) = _generate_code_via_rpc(
+            frozen_coder_handle=(
+                frozen_coder_handle
+            ),
+            prompt=coder_prompt,
         )
 
     except Exception as exc:
-        return _failure_result(
-            problem=problem,
+        return PlanningRewardResult(
+            reward=0.0,
+            problem_id=problem.problem_id,
             plan=plan,
-            status=(
-                "CODE_GENERATION_ERROR"
-            ),
+
+            raw_code_output="",
+            generated_code="",
+            code_extraction_method="none",
+
+            passed=False,
+            status="CODE_GENERATION_ERROR",
+
+            available_tests=available_tests,
+            reward_tests=0,
+
+            passed_tests=0,
+            total_tests=0,
+
+            execution_time=0.0,
+
             error_message=(
                 f"{type(exc).__name__}: "
                 f"{exc}"
             ),
-            available_tests=(
-                available_tests
-            ),
         )
 
     # ------------------------------------------------------------------
-    # 3. Parse Python code
+    # 4. Code extraction
     # ------------------------------------------------------------------
 
-    assert _CODE_PARSER is not None
+    assert (
+        _CODE_PARSER
+        is not None
+    )
 
     try:
         parse_result = (
@@ -748,37 +752,42 @@ def compute_planning_execution_reward(
         )
 
     except Exception as exc:
-        return _failure_result(
-            problem=problem,
+        return PlanningRewardResult(
+            reward=0.0,
+            problem_id=problem.problem_id,
             plan=plan,
-
-            status=(
-                "CODE_PARSING_ERROR"
-            ),
-
-            error_message=(
-                f"{type(exc).__name__}: "
-                f"{exc}"
-            ),
 
             raw_code_output=(
                 raw_code_output
             ),
 
+            generated_code="",
+            code_extraction_method="none",
+
+            passed=False,
+            status="CODE_PARSING_ERROR",
+
+            available_tests=available_tests,
+            reward_tests=0,
+
+            passed_tests=0,
+            total_tests=0,
+
+            execution_time=0.0,
+
             coder_prompt_tokens=(
                 coder_prompt_tokens
             ),
-
             coder_completion_tokens=(
                 coder_completion_tokens
             ),
-
             coder_generation_time=(
                 coder_generation_time
             ),
 
-            available_tests=(
-                available_tests
+            error_message=(
+                f"{type(exc).__name__}: "
+                f"{exc}"
             ),
         )
 
@@ -786,18 +795,10 @@ def compute_planning_execution_reward(
         parse_result.status
         != "SUCCESS"
     ):
-        return _failure_result(
-            problem=problem,
+        return PlanningRewardResult(
+            reward=0.0,
+            problem_id=problem.problem_id,
             plan=plan,
-
-            status=(
-                parse_result.status
-            ),
-
-            error_message=(
-                "Code parsing failed: "
-                f"{parse_result.status}"
-            ),
 
             raw_code_output=(
                 raw_code_output
@@ -811,20 +812,30 @@ def compute_planning_execution_reward(
                 parse_result.extraction_method
             ),
 
+            passed=False,
+            status=parse_result.status,
+
+            available_tests=available_tests,
+            reward_tests=0,
+
+            passed_tests=0,
+            total_tests=0,
+
+            execution_time=0.0,
+
             coder_prompt_tokens=(
                 coder_prompt_tokens
             ),
-
             coder_completion_tokens=(
                 coder_completion_tokens
             ),
-
             coder_generation_time=(
                 coder_generation_time
             ),
 
-            available_tests=(
-                available_tests
+            error_message=(
+                "Code parsing failed: "
+                f"{parse_result.status}"
             ),
         )
 
@@ -833,71 +844,73 @@ def compute_planning_execution_reward(
     )
 
     # ------------------------------------------------------------------
-    # 4. Select reward tests
+    # 5. DeepCoder-style reward test selection
     # ------------------------------------------------------------------
 
-    try:
-        reward_problem = (
-            select_reward_problem(
-                problem,
-                max_tests=(
-                    _MAX_REWARD_TESTS
-                ),
-            )
-        )
+    assert (
+        _MAX_REWARD_TESTS
+        is not None
+    )
 
-    except Exception as exc:
-        return _failure_result(
-            problem=problem,
+    reward_problem = select_reward_tests(
+        problem,
+        max_tests=_MAX_REWARD_TESTS,
+    )
+
+    reward_tests = len(
+        reward_problem.private_tests
+    )
+
+    if reward_tests <= 0:
+        return PlanningRewardResult(
+            reward=0.0,
+            problem_id=problem.problem_id,
             plan=plan,
-
-            status=(
-                "TEST_SELECTION_ERROR"
-            ),
-
-            error_message=(
-                f"{type(exc).__name__}: "
-                f"{exc}"
-            ),
 
             raw_code_output=(
                 raw_code_output
             ),
-
             generated_code=(
                 generated_code
             ),
-
             code_extraction_method=(
                 parse_result.extraction_method
             ),
 
+            passed=False,
+            status="NO_TESTS",
+
+            available_tests=available_tests,
+            reward_tests=0,
+
+            passed_tests=0,
+            total_tests=0,
+
+            execution_time=0.0,
+
             coder_prompt_tokens=(
                 coder_prompt_tokens
             ),
-
             coder_completion_tokens=(
                 coder_completion_tokens
             ),
-
             coder_generation_time=(
                 coder_generation_time
             ),
 
-            available_tests=(
-                available_tests
+            error_message=(
+                "No TACO tests available."
             ),
         )
 
-    reward_test_count = len(
-        reward_problem.private_tests
+    # ------------------------------------------------------------------
+    # 6. TACO evaluation
+    # ------------------------------------------------------------------
+
+    assert (
+        _EVALUATOR
+        is not None
     )
-
-    # ------------------------------------------------------------------
-    # 5. TACO execution
-    # ------------------------------------------------------------------
-
-    assert _EVALUATOR is not None
 
     try:
         evaluation = (
@@ -908,52 +921,52 @@ def compute_planning_execution_reward(
         )
 
     except Exception as exc:
-        return _failure_result(
-            problem=problem,
+        return PlanningRewardResult(
+            reward=0.0,
+            problem_id=problem.problem_id,
             plan=plan,
 
+            raw_code_output=(
+                raw_code_output
+            ),
+            generated_code=(
+                generated_code
+            ),
+            code_extraction_method=(
+                parse_result.extraction_method
+            ),
+
+            passed=False,
             status="EVALUATION_ERROR",
+
+            available_tests=available_tests,
+            reward_tests=reward_tests,
+
+            passed_tests=0,
+            total_tests=0,
+
+            execution_time=0.0,
+
+            coder_prompt_tokens=(
+                coder_prompt_tokens
+            ),
+            coder_completion_tokens=(
+                coder_completion_tokens
+            ),
+            coder_generation_time=(
+                coder_generation_time
+            ),
 
             error_message=(
                 f"{type(exc).__name__}: "
                 f"{exc}"
             ),
-
-            raw_code_output=(
-                raw_code_output
-            ),
-
-            generated_code=(
-                generated_code
-            ),
-
-            code_extraction_method=(
-                parse_result.extraction_method
-            ),
-
-            coder_prompt_tokens=(
-                coder_prompt_tokens
-            ),
-
-            coder_completion_tokens=(
-                coder_completion_tokens
-            ),
-
-            coder_generation_time=(
-                coder_generation_time
-            ),
-
-            available_tests=(
-                available_tests
-            ),
-
-            reward_tests=(
-                reward_test_count
-            ),
         )
 
     # ------------------------------------------------------------------
-    # 6. Sparse binary execution reward
+    # 7. Sparse ORM reward
+    #
+    # No partial K/N reward.
     # ------------------------------------------------------------------
 
     reward = (
@@ -983,23 +996,31 @@ def compute_planning_execution_reward(
             parse_result.extraction_method
         ),
 
-        passed=(
+        passed=bool(
             evaluation.passed
         ),
 
-        status=(
+        status=str(
             evaluation.status
         ),
 
-        passed_tests=(
+        available_tests=(
+            available_tests
+        ),
+
+        reward_tests=(
+            reward_tests
+        ),
+
+        passed_tests=int(
             evaluation.passed_tests
         ),
 
-        total_tests=(
+        total_tests=int(
             evaluation.total_tests
         ),
 
-        execution_time=(
+        execution_time=float(
             evaluation.execution_time
         ),
 
@@ -1015,14 +1036,6 @@ def compute_planning_execution_reward(
             coder_generation_time
         ),
 
-        available_tests=(
-            available_tests
-        ),
-
-        reward_tests=(
-            reward_test_count
-        ),
-
         error_message=(
             evaluation.error_message
         ),
@@ -1030,18 +1043,19 @@ def compute_planning_execution_reward(
 
 
 # ======================================================================
-# Parquet payload restoration
+# Dataset reconstruction
 # ======================================================================
 
-def restore_problem_from_extra_info(
+def _problem_from_extra_info(
     extra_info: dict[str, Any],
 ) -> ProblemExample:
     """
-    Restore the original ProblemExample serialized by
-    build_verl_dataset.py.
+    Restore ProblemExample from the verl parquet `extra_info`.
 
-    Expected:
-        extra_info["problem_json"] = JSON string
+    Current dataset builder stores evaluator-only information as
+    JSON under:
+
+        extra_info["problem_json"]
     """
 
     if not isinstance(
@@ -1049,25 +1063,18 @@ def restore_problem_from_extra_info(
         dict,
     ):
         raise TypeError(
-            "extra_info must be dict."
+            "extra_info must be dict, "
+            f"got {type(extra_info).__name__}."
         )
 
-    if (
-        "problem_json"
-        not in extra_info
-    ):
-        raise KeyError(
-            "extra_info['problem_json'] is required."
-        )
-
-    raw_problem = (
-        extra_info[
+    problem_json = (
+        extra_info.get(
             "problem_json"
-        ]
+        )
     )
 
     if not isinstance(
-        raw_problem,
+        problem_json,
         str,
     ):
         raise TypeError(
@@ -1077,7 +1084,7 @@ def restore_problem_from_extra_info(
 
     try:
         payload = json.loads(
-            raw_problem
+            problem_json
         )
 
     except json.JSONDecodeError as exc:
@@ -1091,35 +1098,13 @@ def restore_problem_from_extra_info(
         dict,
     ):
         raise TypeError(
-            "Decoded problem_json must "
-            "be a dict."
+            "Decoded problem_json "
+            "must be dict."
         )
 
-    try:
-        problem = ProblemExample(
-            **payload
-        )
-
-    except TypeError as exc:
-        raise TypeError(
-            "Failed to reconstruct "
-            "ProblemExample from problem_json."
-        ) from exc
-
-    if (
-        "problem_id"
-        in extra_info
-        and str(
-            extra_info[
-                "problem_id"
-            ]
-        )
-        != problem.problem_id
-    ):
-        raise ValueError(
-            "problem_id mismatch between "
-            "extra_info and problem_json."
-        )
+    problem = ProblemExample(
+        **payload
+    )
 
     return problem
 
@@ -1133,47 +1118,40 @@ def compute_score(
     solution_str: str,
     ground_truth: Any,
     extra_info: dict[str, Any] | None = None,
-) -> float:
+    frozen_coder_handle: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
     """
-    verl-compatible Vanilla Planning-RLVR reward function.
+    verl-compatible Planning-RLVR reward function.
 
-    Parameters
-    ----------
-    data_source:
-        Must be "deepcoder_taco".
+    Important:
+        solution_str is the PLANNER output, not code.
 
-    solution_str:
-        Planner-generated response.
-        In this experiment, this is the PLAN, not code.
+    Reward trajectory:
 
-    ground_truth:
-        Intentionally unused.
+        solution_str
+            = plan
+            ->
+        FrozenCoderWorker
+            ->
+        code
+            ->
+        DeepCoder TACO execution
+            ->
+        sparse {0, 1} reward
 
-        Planning quality is evaluated indirectly through:
-
-            plan
-              -> frozen coder
-              -> generated code
-              -> execution tests
-              -> 0/1
-
-    extra_info:
-        Must contain the serialized ProblemExample under
-        extra_info["problem_json"].
-
-    Returns
-    -------
-    float
-        1.0 if generated code passes the reward tests,
-        otherwise 0.0.
+    `ground_truth` is intentionally not used for correctness.
+    The unit-test execution result is the correctness authority.
     """
 
     del ground_truth
+    del kwargs
 
-    if (
-        data_source
-        != "deepcoder_taco"
-    ):
+    # ------------------------------------------------------------------
+    # 1. Dataset validation
+    # ------------------------------------------------------------------
+
+    if data_source != "deepcoder_taco":
         raise ValueError(
             "Unsupported data_source: "
             f"{data_source!r}. "
@@ -1185,19 +1163,118 @@ def compute_score(
             "extra_info is required."
         )
 
-    problem = (
-        restore_problem_from_extra_info(
-            extra_info
+    if frozen_coder_handle is None:
+        raise ValueError(
+            "frozen_coder_handle is required."
         )
+
+    # ------------------------------------------------------------------
+    # 2. Restore problem
+    # ------------------------------------------------------------------
+
+    problem = _problem_from_extra_info(
+        extra_info
     )
+
+    problem_text = (
+        problem.problem
+    )
+
+    if not isinstance(
+        problem_text,
+        str,
+    ) or not problem_text.strip():
+        raise ValueError(
+            "ProblemExample.problem "
+            "must be non-empty."
+        )
+
+    # ------------------------------------------------------------------
+    # 3. Execute reward trajectory
+    # ------------------------------------------------------------------
 
     result = (
         compute_planning_execution_reward(
             problem=problem,
+            problem_text=problem_text,
             plan=solution_str,
+            frozen_coder_handle=(
+                frozen_coder_handle
+            ),
         )
     )
 
-    return float(
-        result.reward
-    )
+    # ------------------------------------------------------------------
+    # 4. Return scalar reward + diagnostics to verl
+    # ------------------------------------------------------------------
+    #
+    # PlanningRewardManager recognizes a dict result and uses:
+    #
+    #   result["score"]
+    #
+    # as the GRPO reward.
+    #
+    # Remaining scalar/string values become reward_extra_info.
+    # ------------------------------------------------------------------
+
+    return {
+        "score": float(
+            result.reward
+        ),
+
+        "acc": float(
+            result.reward
+        ),
+
+        "passed": bool(
+            result.passed
+        ),
+
+        "status": str(
+            result.status
+        ),
+
+        "problem_id": str(
+            result.problem_id
+        ),
+
+        "available_tests": int(
+            result.available_tests
+        ),
+
+        "reward_tests": int(
+            result.reward_tests
+        ),
+
+        "passed_tests": int(
+            result.passed_tests
+        ),
+
+        "total_tests": int(
+            result.total_tests
+        ),
+
+        "execution_time": float(
+            result.execution_time
+        ),
+
+        "coder_prompt_tokens": int(
+            result.coder_prompt_tokens
+        ),
+
+        "coder_completion_tokens": int(
+            result.coder_completion_tokens
+        ),
+
+        "coder_generation_time": float(
+            result.coder_generation_time
+        ),
+
+        "error_message": (
+            ""
+            if result.error_message is None
+            else str(
+                result.error_message
+            )
+        ),
+    }

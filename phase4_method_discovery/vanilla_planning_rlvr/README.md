@@ -47,7 +47,10 @@ phase4_method_discovery/
     │   └── build_verl_dataset.py
     │
     ├── reward/
-    │   └── planning_execution_reward.py
+    │   ├── planning_execution_reward.py
+    │   └── planning_reward_manager.py
+    ├── workers/
+    │   └── frozen_coder_worker.py
     │
     ├── scripts/
     │   ├── run_train.sh
@@ -58,3 +61,12 @@ phase4_method_discovery/
     │
     └── README.md
 ```
+
+planning_execution_reward.py
+    문제 + plan → code prompt 생성
+
+frozen_coder_worker.py
+    code prompt → raw code output 생성
+
+planning_execution_reward.py
+    raw output → CodeParser → TACOEvaluator → reward
