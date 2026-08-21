@@ -254,28 +254,25 @@ def _ensure_cpu_runtime() -> None:
 # ======================================================================
 # Prompt construction
 # ======================================================================
-
 def build_code_prompt(
     *,
     problem_text: str,
     plan: str,
+    starter_code: str = "",
 ) -> str:
     """
-    Build the same Self-Plan -> Code prompt used by the existing
-    planning pipeline.
+    Build the Self-Plan -> Code prompt.
 
-    Required template placeholders:
-
+    Supported template placeholders:
         {problem}
         {plan}
+        {starter_code}
+        {starter_code_section}
     """
 
     _ensure_cpu_runtime()
 
-    if not isinstance(
-        problem_text,
-        str,
-    ):
+    if not isinstance(problem_text, str):
         raise TypeError(
             "problem_text must be str, "
             f"got {type(problem_text).__name__}."
@@ -286,10 +283,7 @@ def build_code_prompt(
             "problem_text must not be empty."
         )
 
-    if not isinstance(
-        plan,
-        str,
-    ):
+    if not isinstance(plan, str):
         raise TypeError(
             "plan must be str, "
             f"got {type(plan).__name__}."
@@ -300,23 +294,43 @@ def build_code_prompt(
             "plan must not be empty."
         )
 
-    assert (
-        _CODE_PROMPT_TEMPLATE
-        is not None
-    )
+    if starter_code is None:
+        starter_code = ""
+
+    if not isinstance(starter_code, str):
+        raise TypeError(
+            "starter_code must be str, "
+            f"got {type(starter_code).__name__}."
+        )
+
+    starter_code = starter_code.strip()
+
+    if starter_code:
+        starter_code_section = (
+            "\nStarter Code:\n"
+            "```python\n"
+            f"{starter_code}\n"
+            "```\n"
+        )
+    else:
+        starter_code_section = ""
+
+    assert _CODE_PROMPT_TEMPLATE is not None
 
     try:
-        prompt = (
-            _CODE_PROMPT_TEMPLATE.format(
-                problem=problem_text,
-                plan=plan,
-            )
+        prompt = _CODE_PROMPT_TEMPLATE.format(
+            problem=problem_text,
+            plan=plan,
+            starter_code=starter_code,
+            starter_code_section=starter_code_section,
         )
 
     except KeyError as exc:
         raise KeyError(
             "Code prompt template placeholder mismatch. "
-            "Expected {problem} and {plan}. "
+            "Supported placeholders: "
+            "{problem}, {plan}, {starter_code}, "
+            "{starter_code_section}. "
             f"Missing key: {exc}"
         ) from exc
 
@@ -662,6 +676,7 @@ def compute_planning_execution_reward(
         coder_prompt = build_code_prompt(
             problem_text=problem_text,
             plan=plan,
+            starter_code=problem.starter_code,
         )
 
     except Exception as exc:

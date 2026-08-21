@@ -175,15 +175,10 @@ class PlanningRewardManager(
     # ==================================================================
     # Planner response decoding
     # ==================================================================
-
     async def _decode_response(
         self,
         data_item: Any,
     ) -> str:
-        """
-        Decode the valid planner response from one verl DataProto item.
-        """
-
         response_ids = (
             data_item.batch[
                 "responses"
@@ -231,8 +226,11 @@ class PlanningRewardManager(
             ]
         )
 
+        # Always use the event loop currently executing run_single().
+        running_loop = asyncio.get_running_loop()
+
         response_str = (
-            await self.loop.run_in_executor(
+            await running_loop.run_in_executor(
                 None,
                 lambda: self.tokenizer.decode(
                     valid_response_ids,
@@ -242,7 +240,6 @@ class PlanningRewardManager(
         )
 
         return response_str.strip()
-
     # ==================================================================
     # Reward input construction
     # ==================================================================
@@ -456,7 +453,6 @@ class PlanningRewardManager(
         #   - FrozenCoderWorker request ordering
         #   - local TACO execution/evaluator state
         # --------------------------------------------------------------
-
         async with self._reward_lock:
 
             if self.is_async_reward_score:
@@ -471,8 +467,12 @@ class PlanningRewardManager(
                 )
 
             else:
+                running_loop = (
+                    asyncio.get_running_loop()
+                )
+
                 result = (
-                    await self.loop.run_in_executor(
+                    await running_loop.run_in_executor(
                         None,
                         lambda: self.compute_score(
                             data_source=data_source,
@@ -483,7 +483,6 @@ class PlanningRewardManager(
                         ),
                     )
                 )
-
         # --------------------------------------------------------------
         # 3. Normalize reward result
         # --------------------------------------------------------------
