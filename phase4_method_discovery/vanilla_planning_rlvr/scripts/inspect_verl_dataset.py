@@ -1,16 +1,15 @@
 """
-PYTHONPATH=. python \
-  phase4_method_discovery/vanilla_planning_rlvr/scripts/inspect_verl_dataset.py \
-  --input phase4_method_discovery/vanilla_planning_rlvr/data/processed/train.parquet \
-  --num-samples 3
 
-PYTHONPATH=. python \
+PYTHONPATH="$HOME/workspace/project_sLM_planning" \
+python \
   phase4_method_discovery/vanilla_planning_rlvr/scripts/inspect_verl_dataset.py \
-  --input phase4_method_discovery/vanilla_planning_rlvr/data/processed/train.parquet \
-  --num-samples 1 \
-  --show-tests
-  
+  --input /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/train.parquet \
+  --num-samples 2 \
+  --show-tests \
+  --max-tests-to-show 2
+
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,28 +21,41 @@ from typing import Any
 import pandas as pd
 
 
-# ============================================================
+# ======================================================================
 # Project root
-# ============================================================
+# ======================================================================
 
 THIS_FILE = Path(__file__).resolve()
 PROJECT_ROOT = THIS_FILE.parents[3]
 
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT),
+    )
 
 
 from src.schemas import ProblemExample
 
 
-# ============================================================
+# ======================================================================
+# Constants
+# ======================================================================
+
+EXPECTED_DATA_SOURCE = "deepcoder_taco"
+EXPECTED_ABILITY = "code_planning"
+EXPECTED_EVALUATION_TYPE = "stdin"
+
+
+# ======================================================================
 # CLI
-# ============================================================
+# ======================================================================
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Inspect a verl-compatible Planning-RLVR parquet dataset."
+            "Inspect and validate a verl-compatible "
+            "DeepCoder TACO parquet dataset."
         )
     )
 
@@ -51,36 +63,56 @@ def parse_args() -> argparse.Namespace:
         "--input",
         type=str,
         required=True,
-        help="Path to train.parquet or val.parquet.",
+        help=(
+            "Path to train.parquet or val.parquet."
+        ),
     )
 
     parser.add_argument(
         "--num-samples",
         type=int,
         default=3,
-        help="Number of rows to print in detail.",
+        help=(
+            "Number of validated rows to print in detail."
+        ),
     )
 
     parser.add_argument(
         "--show-tests",
         action="store_true",
-        help="Print public/private tests from extra_info.problem.",
+        help=(
+            "Print private evaluator tests for inspected rows."
+        ),
+    )
+
+    parser.add_argument(
+        "--max-tests-to-show",
+        type=int,
+        default=3,
+        help=(
+            "Maximum number of private tests to print per sample."
+        ),
     )
 
     return parser.parse_args()
 
 
-# ============================================================
+# ======================================================================
 # Helpers
-# ============================================================
+# ======================================================================
 
 def resolve_path(
     path: str | Path,
 ) -> Path:
-    resolved = Path(path)
+    resolved = Path(
+        path
+    )
 
     if not resolved.is_absolute():
-        resolved = PROJECT_ROOT / resolved
+        resolved = (
+            PROJECT_ROOT
+            / resolved
+        )
 
     if not resolved.exists():
         raise FileNotFoundError(
@@ -92,25 +124,33 @@ def resolve_path(
 
 def normalize_mapping(
     value: Any,
+    *,
+    field_name: str,
 ) -> dict[str, Any]:
     """
-    Convert parquet-loaded mapping-like objects into a plain dict.
-
-    Depending on pyarrow/pandas versions, nested structs may already
-    be dicts, but this keeps inspection robust.
+    Normalize parquet-loaded struct-like values to plain dict.
     """
 
-    if isinstance(value, dict):
+    if isinstance(
+        value,
+        dict,
+    ):
         return value
 
-    if hasattr(value, "as_py"):
+    if hasattr(
+        value,
+        "as_py",
+    ):
         converted = value.as_py()
 
-        if isinstance(converted, dict):
+        if isinstance(
+            converted,
+            dict,
+        ):
             return converted
 
     raise TypeError(
-        "Expected mapping-like value, "
+        f"{field_name} must be mapping-like, "
         f"got {type(value).__name__}"
     )
 
@@ -119,46 +159,75 @@ def normalize_prompt(
     value: Any,
 ) -> list[dict[str, str]]:
     """
-    Normalize the prompt field to:
+    Normalize verl prompt field.
+
+    Expected:
 
         [
             {
-                "role": "...",
+                "role": "user",
                 "content": "..."
             }
         ]
     """
 
-    if hasattr(value, "tolist"):
+    if hasattr(
+        value,
+        "tolist",
+    ):
         value = value.tolist()
 
-    if not isinstance(value, list):
+    if not isinstance(
+        value,
+        list,
+    ):
         raise TypeError(
             "prompt must be list, "
             f"got {type(value).__name__}"
         )
 
-    messages: list[dict[str, str]] = []
+    messages: list[
+        dict[str, str]
+    ] = []
 
-    for index, item in enumerate(value):
-        if hasattr(item, "as_py"):
+    for index, item in enumerate(
+        value
+    ):
+        if hasattr(
+            item,
+            "as_py",
+        ):
             item = item.as_py()
 
-        if not isinstance(item, dict):
+        if not isinstance(
+            item,
+            dict,
+        ):
             raise TypeError(
                 f"prompt[{index}] must be dict, "
                 f"got {type(item).__name__}"
             )
 
-        role = item.get("role")
-        content = item.get("content")
+        role = item.get(
+            "role"
+        )
 
-        if not isinstance(role, str):
+        content = item.get(
+            "content"
+        )
+
+        if not isinstance(
+            role,
+            str,
+        ):
             raise TypeError(
                 f"prompt[{index}]['role'] must be str."
             )
 
-        if not isinstance(content, str):
+        if not isinstance(
+            content,
+            str,
+        ):
             raise TypeError(
                 f"prompt[{index}]['content'] must be str."
             )
@@ -176,29 +245,63 @@ def normalize_prompt(
 def restore_problem(
     extra_info: dict[str, Any],
 ) -> ProblemExample:
-    if "problem" not in extra_info:
+    """
+    Restore ProblemExample from extra_info.problem_json.
+    """
+
+    if "problem_json" not in extra_info:
         raise KeyError(
-            "extra_info['problem'] is missing."
+            "extra_info['problem_json'] is missing."
         )
 
-    problem_payload = extra_info["problem"]
+    problem_json = extra_info[
+        "problem_json"
+    ]
 
-    if hasattr(problem_payload, "as_py"):
-        problem_payload = problem_payload.as_py()
-
-    if isinstance(problem_payload, ProblemExample):
-        return problem_payload
-
-    if not isinstance(problem_payload, dict):
+    if not isinstance(
+        problem_json,
+        str,
+    ):
         raise TypeError(
-            "extra_info['problem'] must be dict or ProblemExample, "
-            f"got {type(problem_payload).__name__}"
+            "extra_info['problem_json'] must be str, "
+            f"got {type(problem_json).__name__}"
         )
 
-    return ProblemExample(
-        **problem_payload
-    )
+    try:
+        payload = json.loads(
+            problem_json
+        )
 
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            "Failed to parse extra_info['problem_json']."
+        ) from exc
+
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        raise TypeError(
+            "Decoded problem_json must be dict."
+        )
+
+    try:
+        problem = ProblemExample(
+            **payload
+        )
+
+    except TypeError as exc:
+        raise TypeError(
+            "Failed to restore ProblemExample "
+            "from problem_json."
+        ) from exc
+
+    return problem
+
+
+# ======================================================================
+# Row validation
+# ======================================================================
 
 def validate_row(
     row: pd.Series,
@@ -221,22 +324,49 @@ def validate_row(
     for column in required_columns:
         if column not in row:
             raise KeyError(
-                f"Row {row_index}: missing column {column!r}"
+                f"row={row_index}: "
+                f"missing column {column!r}"
             )
 
-    data_source = row["data_source"]
+    # ------------------------------------------------------------------
+    # data_source
+    # ------------------------------------------------------------------
 
-    if data_source != "livecodebench_v6":
+    data_source = row[
+        "data_source"
+    ]
+
+    if (
+        data_source
+        != EXPECTED_DATA_SOURCE
+    ):
         raise ValueError(
-            f"Row {row_index}: unexpected data_source="
+            f"row={row_index}: "
+            f"unexpected data_source="
             f"{data_source!r}"
         )
 
-    if row["ability"] != "code_planning":
+    # ------------------------------------------------------------------
+    # ability
+    # ------------------------------------------------------------------
+
+    ability = row[
+        "ability"
+    ]
+
+    if (
+        ability
+        != EXPECTED_ABILITY
+    ):
         raise ValueError(
-            f"Row {row_index}: unexpected ability="
-            f"{row['ability']!r}"
+            f"row={row_index}: "
+            f"unexpected ability="
+            f"{ability!r}"
         )
+
+    # ------------------------------------------------------------------
+    # prompt
+    # ------------------------------------------------------------------
 
     prompt = normalize_prompt(
         row["prompt"]
@@ -244,71 +374,225 @@ def validate_row(
 
     if not prompt:
         raise ValueError(
-            f"Row {row_index}: prompt is empty."
+            f"row={row_index}: "
+            "prompt is empty."
         )
 
+    if (
+        prompt[0]["role"]
+        != "user"
+    ):
+        raise ValueError(
+            f"row={row_index}: "
+            f"first prompt role must be 'user'."
+        )
+
+    if not prompt[0][
+        "content"
+    ].strip():
+        raise ValueError(
+            f"row={row_index}: "
+            "prompt content is empty."
+        )
+
+    # ------------------------------------------------------------------
+    # reward_model
+    # ------------------------------------------------------------------
+
     reward_model = normalize_mapping(
-        row["reward_model"]
+        row["reward_model"],
+        field_name="reward_model",
     )
 
-    extra_info = normalize_mapping(
-        row["extra_info"]
-    )
+    if (
+        reward_model.get(
+            "style"
+        )
+        != "rule"
+    ):
+        raise ValueError(
+            f"row={row_index}: "
+            "reward_model['style'] must be 'rule'."
+        )
 
     if "ground_truth" not in reward_model:
         raise KeyError(
-            f"Row {row_index}: "
+            f"row={row_index}: "
             "reward_model['ground_truth'] missing."
         )
 
-    if "problem_id" not in extra_info:
-        raise KeyError(
-            f"Row {row_index}: "
-            "extra_info['problem_id'] missing."
-        )
+    # ------------------------------------------------------------------
+    # extra_info
+    # ------------------------------------------------------------------
 
-    if "problem_text" not in extra_info:
-        raise KeyError(
-            f"Row {row_index}: "
-            "extra_info['problem_text'] missing."
-        )
+    extra_info = normalize_mapping(
+        row["extra_info"],
+        field_name="extra_info",
+    )
+
+    required_extra_fields = (
+        "schema_version",
+        "split",
+        "index",
+        "problem_id",
+        "problem_text",
+        "problem_json",
+    )
+
+    for field_name in (
+        required_extra_fields
+    ):
+        if (
+            field_name
+            not in extra_info
+        ):
+            raise KeyError(
+                f"row={row_index}: "
+                f"extra_info[{field_name!r}] missing."
+            )
+
+    # ------------------------------------------------------------------
+    # ProblemExample restoration
+    # ------------------------------------------------------------------
 
     problem = restore_problem(
         extra_info
     )
 
+    # ------------------------------------------------------------------
+    # Cross-field consistency
+    # ------------------------------------------------------------------
+
     if (
-        extra_info["problem_id"]
+        extra_info[
+            "problem_id"
+        ]
         != problem.problem_id
     ):
         raise ValueError(
-            f"Row {row_index}: problem_id mismatch: "
-            f"extra_info={extra_info['problem_id']!r}, "
-            f"problem={problem.problem_id!r}"
+            f"row={row_index}: "
+            "problem_id mismatch: "
+            f"extra_info="
+            f"{extra_info['problem_id']!r}, "
+            f"problem="
+            f"{problem.problem_id!r}"
         )
 
     if (
-        extra_info["problem_text"].strip()
+        str(
+            extra_info[
+                "problem_text"
+            ]
+        ).strip()
         != problem.problem.strip()
     ):
         raise ValueError(
-            f"Row {row_index}: problem_text mismatch."
+            f"row={row_index}: "
+            "problem_text mismatch."
         )
 
-    if problem.dataset != "livecodebench_v6":
+    if (
+        problem.dataset
+        != EXPECTED_DATA_SOURCE
+    ):
         raise ValueError(
-            f"Row {row_index}: restored problem has "
-            f"unexpected dataset={problem.dataset!r}"
+            f"row={row_index}: "
+            f"restored dataset="
+            f"{problem.dataset!r}"
         )
 
-    total_tests = (
-        len(problem.public_tests)
-        + len(problem.private_tests)
+    if (
+        problem.evaluation_type
+        != EXPECTED_EVALUATION_TYPE
+    ):
+        raise ValueError(
+            f"row={row_index}: "
+            f"unexpected evaluation_type="
+            f"{problem.evaluation_type!r}"
+        )
+
+    # ------------------------------------------------------------------
+    # Test integrity
+    # ------------------------------------------------------------------
+
+    if problem.public_tests:
+        raise ValueError(
+            f"row={row_index}: "
+            "public_tests should be empty "
+            "for TACO RLVR training."
+        )
+
+    if not problem.private_tests:
+        raise ValueError(
+            f"row={row_index}: "
+            "private_tests is empty."
+        )
+
+    for test_index, test_case in enumerate(
+        problem.private_tests
+    ):
+        if not isinstance(
+            test_case,
+            dict,
+        ):
+            raise TypeError(
+                f"row={row_index}, "
+                f"test={test_index}: "
+                "test case must be dict."
+            )
+
+        if "input" not in test_case:
+            raise KeyError(
+                f"row={row_index}, "
+                f"test={test_index}: "
+                "missing input."
+            )
+
+        if "output" not in test_case:
+            raise KeyError(
+                f"row={row_index}, "
+                f"test={test_index}: "
+                "missing output."
+            )
+
+        if (
+            test_case["input"]
+            is None
+        ):
+            raise ValueError(
+                f"row={row_index}, "
+                f"test={test_index}: "
+                "input is None."
+            )
+
+        if (
+            test_case["output"]
+            is None
+        ):
+            raise ValueError(
+                f"row={row_index}, "
+                f"test={test_index}: "
+                "output is None."
+            )
+
+    # ------------------------------------------------------------------
+    # Leakage structural check
+    # ------------------------------------------------------------------
+
+    prompt_serialized = json.dumps(
+        prompt,
+        ensure_ascii=False,
     )
 
-    if total_tests == 0:
+    if (
+        '"private_tests"'
+        in prompt_serialized
+        or '"problem_json"'
+        in prompt_serialized
+    ):
         raise ValueError(
-            f"Row {row_index}: restored problem has no tests."
+            f"row={row_index}: "
+            "reward payload leaked into prompt."
         )
 
     return (
@@ -319,92 +603,141 @@ def validate_row(
     )
 
 
-# ============================================================
-# Printing
-# ============================================================
+# ======================================================================
+# Summary
+# ======================================================================
 
 def print_dataset_summary(
     df: pd.DataFrame,
     input_path: Path,
 ) -> None:
-    print("=" * 80)
-    print("Planning-RLVR Dataset Inspection")
-    print("=" * 80)
+    print("=" * 90)
+    print(
+        "DeepCoder TACO verl Dataset Inspection"
+    )
+    print("=" * 90)
 
     print(
-        f"path           : {input_path}"
+        f"path       : {input_path}"
     )
 
     print(
-        f"rows           : {len(df)}"
+        f"rows       : {len(df)}"
     )
 
     print(
-        f"columns        : {list(df.columns)}"
+        f"columns    : {list(df.columns)}"
     )
 
     print()
 
     for column in df.columns:
         print(
-            f"dtype[{column}] : {df[column].dtype}"
+            f"dtype[{column}] : "
+            f"{df[column].dtype}"
         )
 
-    print("=" * 80)
+    print("=" * 90)
+
+
+# ======================================================================
+# Sample printing
+# ======================================================================
+
+def preview_value(
+    value: Any,
+    *,
+    max_chars: int = 1000,
+) -> str:
+    try:
+        text = json.dumps(
+            value,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    except TypeError:
+        text = repr(
+            value
+        )
+
+    if len(text) <= max_chars:
+        return text
+
+    return (
+        text[:max_chars]
+        + "\n... <truncated>"
+    )
 
 
 def print_sample(
     *,
     index: int,
-    prompt: list[dict[str, str]],
-    reward_model: dict[str, Any],
-    extra_info: dict[str, Any],
+    prompt: list[
+        dict[str, str]
+    ],
+    reward_model: dict[
+        str,
+        Any
+    ],
+    extra_info: dict[
+        str,
+        Any
+    ],
     problem: ProblemExample,
     show_tests: bool,
+    max_tests_to_show: int,
 ) -> None:
     print()
-    print("=" * 80)
-    print(f"Sample {index}")
-    print("=" * 80)
+    print("=" * 90)
+    print(
+        f"Sample {index}"
+    )
+    print("=" * 90)
 
     print(
-        f"problem_id      : {problem.problem_id}"
+        f"problem_id      : "
+        f"{problem.problem_id}"
     )
 
     print(
-        f"title           : {problem.title}"
+        f"dataset         : "
+        f"{problem.dataset}"
     )
 
     print(
-        f"difficulty      : {problem.difficulty}"
+        f"platform        : "
+        f"{problem.platform}"
     )
 
     print(
-        f"rating          : {problem.rating}"
+        f"evaluation_type : "
+        f"{problem.evaluation_type}"
     )
 
     print(
-        f"evaluation_type : {problem.evaluation_type}"
+        f"split           : "
+        f"{extra_info.get('split')}"
     )
 
     print(
-        f"public_tests    : {len(problem.public_tests)}"
+        f"dataset index   : "
+        f"{extra_info.get('index')}"
     )
 
     print(
-        f"private_tests   : {len(problem.private_tests)}"
+        f"private_tests   : "
+        f"{len(problem.private_tests)}"
     )
 
     print(
-        f"split           : {extra_info.get('split')}"
+        f"public_tests    : "
+        f"{len(problem.public_tests)}"
     )
 
     print(
-        f"dataset index   : {extra_info.get('index')}"
-    )
-
-    print(
-        f"reward style    : {reward_model.get('style')}"
+        f"reward style    : "
+        f"{reward_model.get('style')}"
     )
 
     print(
@@ -412,26 +745,44 @@ def print_sample(
         f"{reward_model.get('ground_truth')!r}"
     )
 
+    problem_json_length = len(
+        extra_info["problem_json"]
+    )
+
+    print(
+        f"problem_json    : "
+        f"{problem_json_length} chars"
+    )
+
+    # ------------------------------------------------------------------
+    # Prompt
+    # ------------------------------------------------------------------
+
     print()
-    print("-" * 80)
+    print("-" * 90)
     print("Prompt")
-    print("-" * 80)
+    print("-" * 90)
 
     for message_index, message in enumerate(
         prompt
     ):
         print(
-            f"[{message_index}] role="
-            f"{message['role']}"
+            f"[{message_index}] "
+            f"role={message['role']}"
         )
+
         print(
             message["content"]
         )
 
+    # ------------------------------------------------------------------
+    # Problem
+    # ------------------------------------------------------------------
+
     print()
-    print("-" * 80)
-    print("Problem")
-    print("-" * 80)
+    print("-" * 90)
+    print("Restored Problem")
+    print("-" * 90)
 
     print(
         problem.problem
@@ -439,51 +790,79 @@ def print_sample(
 
     if problem.starter_code:
         print()
-        print("-" * 80)
-        print("Starter Code")
-        print("-" * 80)
+        print(
+            "[Starter Code]"
+        )
+
         print(
             problem.starter_code
         )
 
+    # ------------------------------------------------------------------
+    # Tests
+    # ------------------------------------------------------------------
+
     if show_tests:
         print()
-        print("-" * 80)
-        print("Public Tests")
-        print("-" * 80)
-
-        print(
-            json.dumps(
-                problem.public_tests,
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
-
-        print()
-        print("-" * 80)
+        print("-" * 90)
         print("Private Tests")
-        print("-" * 80)
+        print("-" * 90)
 
-        print(
-            json.dumps(
-                problem.private_tests,
-                indent=2,
-                ensure_ascii=False,
-            )
+        num_to_show = min(
+            max_tests_to_show,
+            len(
+                problem.private_tests
+            ),
         )
 
+        for test_index in range(
+            num_to_show
+        ):
+            test_case = (
+                problem.private_tests[
+                    test_index
+                ]
+            )
 
-# ============================================================
+            print()
+            print(
+                f"[test {test_index}]"
+            )
+
+            print(
+                preview_value(
+                    test_case,
+                    max_chars=2000,
+                )
+            )
+
+        if (
+            len(problem.private_tests)
+            > num_to_show
+        ):
+            print()
+            print(
+                "... "
+                f"{len(problem.private_tests) - num_to_show} "
+                "more tests omitted"
+            )
+
+
+# ======================================================================
 # Main
-# ============================================================
+# ======================================================================
 
 def main() -> None:
     args = parse_args()
 
-    if args.num_samples <= 0:
+    if args.num_samples < 0:
         raise ValueError(
-            "--num-samples must be > 0."
+            "--num-samples must be >= 0."
+        )
+
+    if args.max_tests_to_show <= 0:
+        raise ValueError(
+            "--max-tests-to-show must be > 0."
         )
 
     input_path = resolve_path(
@@ -505,15 +884,44 @@ def main() -> None:
         input_path,
     )
 
-    num_to_inspect = min(
+    num_to_print = min(
         args.num_samples,
         len(df),
     )
 
     validated = 0
 
-    for index in range(len(df)):
-        row = df.iloc[index]
+    total_private_tests = 0
+
+    min_private_tests: (
+        int | None
+    ) = None
+
+    max_private_tests: (
+        int | None
+    ) = None
+
+    split_counts: dict[
+        str,
+        int
+    ] = {}
+
+    input_type_counts: dict[
+        str,
+        int
+    ] = {}
+
+    output_type_counts: dict[
+        str,
+        int
+    ] = {}
+
+    for row_index in range(
+        len(df)
+    ):
+        row = df.iloc[
+            row_index
+        ]
 
         try:
             (
@@ -523,48 +931,196 @@ def main() -> None:
                 problem,
             ) = validate_row(
                 row,
-                row_index=index,
+                row_index=row_index,
             )
 
         except Exception as exc:
             print()
-            print("=" * 80)
-            print("[FAIL] Dataset validation failed")
-            print("=" * 80)
+            print("=" * 90)
             print(
-                f"row   : {index}"
+                "[FAIL] Dataset validation failed"
             )
+            print("=" * 90)
+
             print(
-                f"error : {type(exc).__name__}: {exc}"
+                f"row   : {row_index}"
             )
+
+            print(
+                f"error : "
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            )
+
             raise
 
         validated += 1
 
-        if index < num_to_inspect:
+        # --------------------------------------------------------------
+        # Aggregate statistics
+        # --------------------------------------------------------------
+
+        num_tests = len(
+            problem.private_tests
+        )
+
+        total_private_tests += (
+            num_tests
+        )
+
+        if (
+            min_private_tests
+            is None
+            or num_tests
+            < min_private_tests
+        ):
+            min_private_tests = (
+                num_tests
+            )
+
+        if (
+            max_private_tests
+            is None
+            or num_tests
+            > max_private_tests
+        ):
+            max_private_tests = (
+                num_tests
+            )
+
+        split = str(
+            extra_info.get(
+                "split",
+                "",
+            )
+        )
+
+        split_counts[
+            split
+        ] = (
+            split_counts.get(
+                split,
+                0,
+            )
+            + 1
+        )
+
+        for test_case in (
+            problem.private_tests
+        ):
+            input_type = type(
+                test_case[
+                    "input"
+                ]
+            ).__name__
+
+            output_type = type(
+                test_case[
+                    "output"
+                ]
+            ).__name__
+
+            input_type_counts[
+                input_type
+            ] = (
+                input_type_counts.get(
+                    input_type,
+                    0,
+                )
+                + 1
+            )
+
+            output_type_counts[
+                output_type
+            ] = (
+                output_type_counts.get(
+                    output_type,
+                    0,
+                )
+                + 1
+            )
+
+        # --------------------------------------------------------------
+        # Sample print
+        # --------------------------------------------------------------
+
+        if (
+            row_index
+            < num_to_print
+        ):
             print_sample(
-                index=index,
+                index=row_index,
                 prompt=prompt,
                 reward_model=reward_model,
                 extra_info=extra_info,
                 problem=problem,
-                show_tests=args.show_tests,
+                show_tests=(
+                    args.show_tests
+                ),
+                max_tests_to_show=(
+                    args.max_tests_to_show
+                ),
             )
 
+    # ==================================================================
+    # Final summary
+    # ==================================================================
+
     print()
-    print("=" * 80)
-    print("Validation Summary")
-    print("=" * 80)
+    print("=" * 90)
+    print(
+        "Validation Summary"
+    )
+    print("=" * 90)
 
     print(
-        f"validated rows : {validated}/{len(df)}"
+        f"validated rows      : "
+        f"{validated}/{len(df)}"
     )
+
+    print(
+        f"split counts        : "
+        f"{split_counts}"
+    )
+
+    print(
+        f"total private tests : "
+        f"{total_private_tests}"
+    )
+
+    if validated:
+        print(
+            f"mean tests/problem  : "
+            f"{total_private_tests / validated:.2f}"
+        )
+
+    print(
+        f"min tests/problem   : "
+        f"{min_private_tests}"
+    )
+
+    print(
+        f"max tests/problem   : "
+        f"{max_private_tests}"
+    )
+
+    print(
+        f"input types         : "
+        f"{input_type_counts}"
+    )
+
+    print(
+        f"output types        : "
+        f"{output_type_counts}"
+    )
+
+    print()
 
     print(
         "[PASS] All rows are structurally valid."
     )
 
-    print("=" * 80)
+    print("=" * 90)
 
 
 if __name__ == "__main__":
