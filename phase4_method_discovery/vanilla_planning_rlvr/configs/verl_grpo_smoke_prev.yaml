@@ -16,6 +16,7 @@ defaults:
   - ppo_trainer
   - _self_
 
+
 # =============================================================================
 # Data
 # =============================================================================
@@ -27,60 +28,73 @@ data:
   val_files:
     - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/val.parquet
 
+  # One prompt for the smallest possible trainer integration test.
+  #
+  # rollout.n=4 below means:
+  #   1 prompt -> 4 sampled plans
   train_batch_size: 1
+
   val_batch_size: 1
 
+  # Planner input/output lengths.
   max_prompt_length: 2048
-  max_response_length: 256
+  max_response_length: 512
 
+  # Dataset was already shuffled/split deterministically during build.
   shuffle: true
   validation_shuffle: false
 
+  # Keep preprocessing lightweight for smoke run.
   dataloader_num_workers: 0
 
+  # Avoid unexpected filtering during the integration test.
   filter_overlong_prompts: true
   truncation: error
+
 
 # =============================================================================
 # Planner actor + rollout
 # =============================================================================
-# FSDP actor attention   = sdpa
-# vLLM rollout attention = FLASHINFER (set in run_grpo_smoke.sh)
+# attention backend      = sdpa
 # use_remove_padding     = false
+# flash_attn package     = 불필요
 
 actor_rollout_ref:
 
   model:
     path: Qwen/Qwen2.5-Coder-3B-Instruct
+
     tokenizer_path: Qwen/Qwen2.5-Coder-3B-Instruct
+
     trust_remote_code: true
 
+    # Important for a single 32 GB GPU.
     enable_gradient_checkpointing: true
+
     use_remove_padding: false
 
     override_config:
       attn_implementation: sdpa
 
-    # -----------------------------------------------------------------
-    # Planner LoRA
-    # -----------------------------------------------------------------
-    lora_rank: 16
-    lora_alpha: 32
 
-    # verl / PEFT supported default.
-    # For the first feasibility smoke, keep the default broad target.
-    target_modules: all-linear
-
-    lora_adapter_path: null
-
+  # ---------------------------------------------------------------------------
+  # Trainable planner
+  # ---------------------------------------------------------------------------
 
   actor:
+
     strategy: fsdp
 
+    # GRPO smoke:
+    # train_batch_size=1 prompt, rollout.n=4.
+    #
+    # main_ppo_sync internally multiplies this by rollout.n,
+    # resulting in 4 plan trajectories for the actor update.
     ppo_mini_batch_size: 1
     ppo_micro_batch_size_per_gpu: 1
 
     use_dynamic_bsz: true
+    # Conservative token budget for one GPU.
     ppo_max_token_len_per_gpu: 4096
 
     ppo_epochs: 1
@@ -90,8 +104,11 @@ actor_rollout_ref:
     clip_ratio: 0.2
     entropy_coeff: 0.0
 
+    # Vanilla GRPO baseline:
+    # no explicit KL loss.
     use_kl_loss: false
 
+    # Single-GPU memory offload
     fsdp_config:
       param_offload: true
       optimizer_offload: true
@@ -104,33 +121,38 @@ actor_rollout_ref:
       warmup_style: constant
 
 
+  # ---------------------------------------------------------------------------
+  # Planner rollout
+  # ---------------------------------------------------------------------------
+
   rollout:
+
+    # vLLM is the rollout backend.
     name: vllm
+
+    # main_ppo_sync uses the async agent-loop infrastructure.
     mode: async
+
     dtype: bfloat16
 
-    # LoRA setup:
-    # Load the frozen base model directly from the HF checkpoint.
-    # Only LoRA adapter weights need trainer -> rollout synchronization.
-    load_format: auto
-
-    # Keep GRPO group size intact.
+    # Research setting:
+    # sample four candidate plans per problem.
     n: 4
-
     temperature: 1.0
     top_p: 1.0
     top_k: -1
     do_sample: true
 
     prompt_length: 2048
-    response_length: 256
+    response_length: 512
 
-    # Aggressive memory setting for one-step smoke only.
+    # Critical on the single RTX 5090 because the frozen coder
+    # must coexist on the same GPU.
+    #
+    # Start conservatively. Increase only after the smoke run
+    # demonstrates enough free VRAM.
     gpu_memory_utilization: 0.25
-
-    # 2048 prompt + 256 response = 2304,
-    # leave some context margin.
-    max_model_len: 2560
+    max_model_len: 3072
 
     enforce_eager: true
     free_cache_engine: true
@@ -138,9 +160,8 @@ actor_rollout_ref:
     tensor_model_parallel_size: 1
     data_parallel_size: 1
 
-    # Smoke needs only one prompt x four plans.
-    max_num_batched_tokens: 2560
-    max_num_seqs: 4
+    max_num_batched_tokens: 4096
+    max_num_seqs: 8
 
     enable_chunked_prefill: true
     enable_prefix_caching: false
@@ -150,14 +171,17 @@ actor_rollout_ref:
 
     checkpoint_engine:
       backend: naive
-      update_weights_bucket_megabytes: 32
+      update_weights_bucket_megabytes: 128
 
+    # Validation is not actually run in this smoke config,
+    # but keep the values deterministic if enabled later.
     val_kwargs:
       n: 1
       temperature: 0.0
       top_p: 1.0
       top_k: -1
       do_sample: false
+
 
 # =============================================================================
 # GRPO
@@ -234,7 +258,7 @@ trainer:
 
   project_name: sLM-planning
 
-  experiment_name: vanilla_planning_rlvr_lora_grpo_smoke
+  experiment_name: vanilla_planning_rlvr_grpo_smoke
 
   logger:
     - console
@@ -261,7 +285,7 @@ trainer:
 
   log_val_generations: 0
 
-  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_lora_grpo_smoke
+  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_grpo_smoke
 
   default_hdfs_dir: null
 

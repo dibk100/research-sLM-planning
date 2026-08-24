@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
-from dataclasses import dataclass
+
 from pathlib import Path
 from typing import Any
 
@@ -78,7 +78,6 @@ _RUNTIME_INITIALIZED: bool = False
 # Reward result
 # ======================================================================
 
-@dataclass
 class PlanningRewardResult:
     """
     Detailed result for one Vanilla Planning-RLVR trajectory.
@@ -88,31 +87,74 @@ class PlanningRewardResult:
     The remaining fields are useful for rollout diagnostics.
     """
 
-    reward: float
+    def __init__(
+        self,
+        *,
+        reward: float,
+        problem_id: str,
+        plan: str,
+        raw_code_output: str,
+        generated_code: str,
+        code_extraction_method: str,
+        passed: bool,
+        status: str,
+        available_tests: int,
+        reward_tests: int,
+        passed_tests: int,
+        total_tests: int,
+        execution_time: float,
+        coder_prompt_tokens: int = 0,
+        coder_completion_tokens: int = 0,
+        coder_generation_time: float = 0.0,
+        error_message: str | None = None,
+    ) -> None:
+        self.reward = float(reward)
 
-    problem_id: str
-    plan: str
+        self.problem_id = str(problem_id)
+        self.plan = str(plan)
 
-    raw_code_output: str
-    generated_code: str
-    code_extraction_method: str
+        self.raw_code_output = str(raw_code_output)
+        self.generated_code = str(generated_code)
+        self.code_extraction_method = str(
+            code_extraction_method
+        )
 
-    passed: bool
-    status: str
+        self.passed = bool(passed)
+        self.status = str(status)
 
-    available_tests: int
-    reward_tests: int
+        self.available_tests = int(
+            available_tests
+        )
+        self.reward_tests = int(
+            reward_tests
+        )
 
-    passed_tests: int
-    total_tests: int
+        self.passed_tests = int(
+            passed_tests
+        )
+        self.total_tests = int(
+            total_tests
+        )
 
-    execution_time: float
+        self.execution_time = float(
+            execution_time
+        )
 
-    coder_prompt_tokens: int = 0
-    coder_completion_tokens: int = 0
-    coder_generation_time: float = 0.0
+        self.coder_prompt_tokens = int(
+            coder_prompt_tokens
+        )
+        self.coder_completion_tokens = int(
+            coder_completion_tokens
+        )
+        self.coder_generation_time = float(
+            coder_generation_time
+        )
 
-    error_message: str | None = None
+        self.error_message = (
+            None
+            if error_message is None
+            else str(error_message)
+        )
 
 
 # ======================================================================
@@ -479,7 +521,6 @@ def select_reward_tests(
 # ======================================================================
 # Frozen coder RPC
 # ======================================================================
-
 def _generate_code_via_rpc(
     *,
     frozen_coder_handle: Any,
@@ -493,6 +534,12 @@ def _generate_code_via_rpc(
     """
     Request one deterministic completion from FrozenCoderWorker.
 
+    Lifecycle
+    ---------
+    1. Wake frozen coder on GPU.
+    2. Generate one code completion.
+    3. Move frozen coder back to CPU in all cases.
+
     FrozenCoderWorker.generate_code() returns:
 
         {
@@ -501,6 +548,20 @@ def _generate_code_via_rpc(
             "completion_tokens": int,
             "generation_time": float,
         }
+
+    Notes
+    -----
+    This per-request wake/sleep lifecycle is intentionally conservative
+    for the single-GPU integration smoke test.
+
+    For full GRPO training, this should later be promoted to a
+    batch-level lifecycle:
+
+        wake once
+        -> score all plans in the reward batch
+        -> sleep once
+
+    to avoid repeated CPU <-> GPU transfers.
     """
 
     if frozen_coder_handle is None:
@@ -508,21 +569,126 @@ def _generate_code_via_rpc(
             "frozen_coder_handle is required."
         )
 
-    if not isinstance(
-        prompt,
-        str,
-    ) or not prompt.strip():
+    if (
+        not isinstance(prompt, str)
+        or not prompt.strip()
+    ):
         raise ValueError(
             "prompt must be a non-empty string."
         )
 
-    response = ray.get(
-        frozen_coder_handle
-        .generate_code
-        .remote(
-            prompt
+    # ------------------------------------------------------------------
+    # 1. Wake frozen coder on GPU
+    # ------------------------------------------------------------------
+
+    try:
+        wake_status = ray.get(
+            frozen_coder_handle
+            .wake_up
+            .remote()
         )
-    )
+
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to wake frozen coder on GPU: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+    if isinstance(wake_status, dict):
+        device = wake_status.get(
+            "device"
+        )
+
+        if device != "cuda":
+            raise RuntimeError(
+                "Frozen coder wake_up() completed, "
+                f"but reported device={device!r}."
+            )
+
+    # ------------------------------------------------------------------
+    # 2. Generate
+    #
+    # Always return the coder to CPU after generation, even when
+    # generation raises.
+    # ------------------------------------------------------------------
+
+    generation_error: Exception | None = None
+
+    try:
+        response = ray.get(
+            frozen_coder_handle
+            .generate_code
+            .remote(
+                prompt
+            )
+        )
+
+    except Exception as exc:
+        generation_error = exc
+        response = None
+
+    # ------------------------------------------------------------------
+    # 3. Sleep frozen coder
+    # ------------------------------------------------------------------
+
+    sleep_error: Exception | None = None
+
+    try:
+        sleep_status = ray.get(
+            frozen_coder_handle
+            .sleep
+            .remote()
+        )
+
+        if isinstance(
+            sleep_status,
+            dict,
+        ):
+            device = sleep_status.get(
+                "device"
+            )
+
+            if device != "cpu":
+                raise RuntimeError(
+                    "Frozen coder sleep() completed, "
+                    f"but reported device={device!r}."
+                )
+
+    except Exception as exc:
+        sleep_error = exc
+
+    # Preserve generation failure as the primary error.
+    if generation_error is not None:
+        if sleep_error is not None:
+            raise RuntimeError(
+                "Frozen coder generation failed, "
+                "and subsequent sleep also failed. "
+                f"generation_error="
+                f"{type(generation_error).__name__}: "
+                f"{generation_error}; "
+                f"sleep_error="
+                f"{type(sleep_error).__name__}: "
+                f"{sleep_error}"
+            ) from generation_error
+
+        raise RuntimeError(
+            "Frozen coder generation failed: "
+            f"{type(generation_error).__name__}: "
+            f"{generation_error}"
+        ) from generation_error
+
+    # A failure to release GPU memory is an infrastructure failure.
+    if sleep_error is not None:
+        raise RuntimeError(
+            "Frozen coder generated successfully, "
+            "but failed to return to CPU: "
+            f"{type(sleep_error).__name__}: "
+            f"{sleep_error}"
+        ) from sleep_error
+
+    # ------------------------------------------------------------------
+    # 4. Validate RPC response
+    # ------------------------------------------------------------------
 
     if not isinstance(
         response,
@@ -573,7 +739,6 @@ def _generate_code_via_rpc(
             )
         ),
     )
-
 
 # ======================================================================
 # Core reward trajectory

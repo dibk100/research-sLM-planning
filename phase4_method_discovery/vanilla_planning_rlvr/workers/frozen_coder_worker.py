@@ -2,14 +2,43 @@
 GPU에서 frozen coder inference만 담당
 prompt를 받아 frozen model로 completion을 생성하는 GPU inference service
 
+Frozen downstream coder inference worker.
+
+The model is loaded once, but does not permanently occupy GPU memory.
+
+Lifecycle
+---------
+init_model()
+    -> load frozen coder
+    -> move model to CPU
+    -> GPU memory released
+
+wake_up()
+    -> move frozen coder to CUDA
+
+generate_code()
+    -> deterministic code generation
+
+sleep()
+    -> move frozen coder back to CPU
+    -> release CUDA cache
+
+This allows the single GPU to be shared with:
+- trainable planner
+- vLLM planner rollout
+- frozen downstream coder
 """
+
 # phase4_method_discovery/vanilla_planning_rlvr/workers/frozen_coder_worker.py
 
 from __future__ import annotations
 
+import gc
+import os
 from pathlib import Path
 from typing import Any
 
+import torch
 from omegaconf import DictConfig, OmegaConf
 
 from src.models.generator import ModelGenerator
@@ -108,29 +137,16 @@ def load_experiment_config(
 
 class FrozenCoderWorker:
     """
-    GPU inference service for the frozen downstream coder.
+    Frozen downstream coder inference service.
 
-    Responsibilities
-    ----------------
-    - Load exactly one frozen coder model in this Ray actor.
-    - Keep the model in eval mode.
-    - Disable gradients.
-    - Receive already-built code-generation prompts.
-    - Return raw model completions and generation metadata.
+    The model is loaded once and kept frozen.
 
-    It intentionally does NOT know about:
-    - ProblemExample
-    - planning prompts
-    - TACO tests
-    - CodeParser
-    - execution reward
-    - GRPO
+    Unlike the previous implementation, the coder is not permanently
+    resident on GPU. It can be moved between CPU and CUDA so that the
+    single RTX 5090 can be shared with the planner/FSDP/vLLM stack.
 
-    Those remain outside this GPU worker.
-
-    Ray actors execute methods serially by default, which also prevents
-    multiple reward requests from concurrently calling generate() on
-    the same Hugging Face model.
+    Ray actors execute methods serially by default, so wake/generate/sleep
+    calls on this worker are serialized.
     """
 
     def __init__(
@@ -155,6 +171,29 @@ class FrozenCoderWorker:
         self.temperature: float = 0.0
         self.top_p: float = 1.0
 
+        self.device: str = "cpu"
+
+    # ==================================================================
+    # Internal helpers
+    # ==================================================================
+
+    @staticmethod
+    def _clear_cuda_cache() -> None:
+        gc.collect()
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+
+    def _require_initialized(self) -> ModelGenerator:
+        if self.model is None:
+            raise RuntimeError(
+                "Frozen coder is not initialized. "
+                "Call init_model() first."
+            )
+
+        return self.model
+
     # ==================================================================
     # Model lifecycle
     # ==================================================================
@@ -163,8 +202,11 @@ class FrozenCoderWorker:
         """
         Load the frozen coder exactly once.
 
-        Returns diagnostic information so the trainer can verify
-        which checkpoint/config was actually loaded.
+        Important
+        ---------
+        The model is initially loaded on CPU.
+
+        GPU placement is controlled explicitly by wake_up()/sleep().
         """
 
         if self.model is not None:
@@ -216,16 +258,22 @@ class FrozenCoderWorker:
             f"top_p           : {self.top_p}"
         )
 
-        # Ray assigns CUDA_VISIBLE_DEVICES to this actor because the
-        # actor is created with a fractional GPU resource inside the
-        # global placement group.
+        # ------------------------------------------------------------------
+        # Critical difference from previous implementation:
         #
-        # Therefore device_map="auto" sees only the GPU assigned to
-        # this actor.
+        # Do NOT use device_map="auto".
+        #
+        # device_map="auto" immediately places the whole frozen coder on
+        # the Ray actor's visible CUDA device and keeps it resident there.
+        #
+        # We deliberately load on CPU so the planner/FSDP/vLLM stack can
+        # initialize and synchronize its weights first.
+        # ------------------------------------------------------------------
+
         model = ModelGenerator(
             self.model_path,
             dtype=dtype,
-            device_map="auto",
+            device_map="cpu",
         )
 
         model.model.eval()
@@ -234,12 +282,78 @@ class FrozenCoderWorker:
             parameter.requires_grad_(False)
 
         self.model = model
+        self.device = "cpu"
+
+        self._clear_cuda_cache()
 
         print(
-            "[FrozenCoderWorker] model initialized."
+            "[FrozenCoderWorker] model initialized on CPU."
         )
         print("=" * 80)
         print()
+
+        return self.get_status()
+
+    def wake_up(self) -> dict[str, Any]:
+        """
+        Move the frozen coder to CUDA.
+
+        This must only be called when the planner/vLLM stack has released
+        enough GPU memory for reward inference.
+        """
+
+        model = self._require_initialized()
+
+        if self.device == "cuda":
+            return self.get_status()
+
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "CUDA is not available in FrozenCoderWorker."
+            )
+
+        print(
+            "[FrozenCoderWorker] waking coder on GPU..."
+        )
+
+        model.model.to("cuda")
+
+        model.model.eval()
+
+        self.device = "cuda"
+
+        torch.cuda.synchronize()
+
+        print(
+            "[FrozenCoderWorker] coder is on GPU."
+        )
+
+        return self.get_status()
+
+    def sleep(self) -> dict[str, Any]:
+        """
+        Move the frozen coder back to CPU and release CUDA memory.
+        """
+
+        model = self._require_initialized()
+
+        if self.device == "cpu":
+            self._clear_cuda_cache()
+            return self.get_status()
+
+        print(
+            "[FrozenCoderWorker] moving coder to CPU..."
+        )
+
+        model.model.to("cpu")
+
+        self.device = "cpu"
+
+        self._clear_cuda_cache()
+
+        print(
+            "[FrozenCoderWorker] coder is on CPU."
+        )
 
         return self.get_status()
 
@@ -254,26 +368,15 @@ class FrozenCoderWorker:
         """
         Generate one deterministic plan-conditioned code completion.
 
-        Parameters
-        ----------
-        prompt:
-            Fully constructed Self-Plan -> Code prompt.
-
-        Returns
-        -------
-        dict
-            {
-                "text": str,
-                "prompt_tokens": int,
-                "completion_tokens": int,
-                "generation_time": float,
-            }
+        wake_up() must be called before generation.
         """
 
-        if self.model is None:
+        model = self._require_initialized()
+
+        if self.device != "cuda":
             raise RuntimeError(
-                "Frozen coder is not initialized. "
-                "Call init_model() first."
+                "Frozen coder is sleeping on CPU. "
+                "Call wake_up() before generate_code()."
             )
 
         if (
@@ -284,12 +387,13 @@ class FrozenCoderWorker:
                 "prompt must be a non-empty string."
             )
 
-        generation = self.model.generate(
-            prompt,
-            max_new_tokens=self.max_new_tokens,
-            temperature=self.temperature,
-            top_p=self.top_p,
-        )
+        with torch.inference_mode():
+            generation = model.generate(
+                prompt,
+                max_new_tokens=self.max_new_tokens,
+                temperature=self.temperature,
+                top_p=self.top_p,
+            )
 
         text = generation.text
 
@@ -322,18 +426,39 @@ class FrozenCoderWorker:
     # ==================================================================
 
     def get_status(self) -> dict[str, Any]:
-        import os
+        cuda_allocated_gb = 0.0
+        cuda_reserved_gb = 0.0
+
+        if torch.cuda.is_available():
+            cuda_allocated_gb = (
+                torch.cuda.memory_allocated()
+                / (1024 ** 3)
+            )
+            cuda_reserved_gb = (
+                torch.cuda.memory_reserved()
+                / (1024 ** 3)
+            )
 
         return {
             "initialized": (
                 self.model is not None
             ),
+            "device": self.device,
             "model_path": self.model_path,
             "config_path": self.config_path,
+            "pid": os.getpid(),
             "cuda_visible_devices": os.environ.get(
                 "CUDA_VISIBLE_DEVICES"
             ),
             "max_new_tokens": self.max_new_tokens,
             "temperature": self.temperature,
             "top_p": self.top_p,
+            "cuda_allocated_gb": round(
+                cuda_allocated_gb,
+                3,
+            ),
+            "cuda_reserved_gb": round(
+                cuda_reserved_gb,
+                3,
+            ),
         }
