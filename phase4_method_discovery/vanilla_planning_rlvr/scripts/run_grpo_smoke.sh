@@ -20,7 +20,7 @@ VERL_ROOT="${HOME}/workspace/verl"
 CONDA_ENV="/mnt/hdd/conda_envs/planning_rlvr"
 
 SMOKE_CONFIG_DIR="${PROJECT_ROOT}/phase4_method_discovery/vanilla_planning_rlvr/configs"
-SMOKE_CONFIG_NAME="verl_grpo_smoke"
+SMOKE_CONFIG_NAME="verl_grpo_signal_smoke"
 
 RESEARCH_CONFIG="${SMOKE_CONFIG_DIR}/vanilla_planning_rlvr_qwen25coder3b.yaml"
 
