@@ -4,7 +4,6 @@
 
 set -euo pipefail
 
-
 # ==============================================================================
 # Vanilla Planning-RLVR
 # verl GRPO 1-step smoke test
@@ -21,7 +20,7 @@ VERL_ROOT="${HOME}/workspace/verl"
 CONDA_ENV="/mnt/hdd/conda_envs/planning_rlvr"
 
 SMOKE_CONFIG_DIR="${PROJECT_ROOT}/phase4_method_discovery/vanilla_planning_rlvr/configs"
-SMOKE_CONFIG_NAME="verl_grpo_smoke"
+SMOKE_CONFIG_NAME="verl_grpo_signal_smoke"
 
 RESEARCH_CONFIG="${SMOKE_CONFIG_DIR}/vanilla_planning_rlvr_qwen25coder3b.yaml"
 
@@ -265,23 +264,27 @@ if [[ -z "${HF_HOME:-}" ]]; then
     export HF_HOME="/mnt/hdd/hf_cache"
 fi
 
-
 # Avoid tokenizer fork noise.
 export TOKENIZERS_PARALLELISM=false
-
-
 # Useful while debugging the 1-step integration test.
 export HYDRA_FULL_ERROR=1
-
-
 # Make Python logs immediately visible.
 export PYTHONUNBUFFERED=1
+
+unset PYTORCH_CUDA_ALLOC_CONF
+unset PYTORCH_ALLOC_CONF
+
+export CUDA_HOME=/mnt/hdd/conda_envs/planning_rlvr
+export PATH="${CUDA_HOME}/bin:${PATH}"
+
+export VLLM_ATTENTION_BACKEND=FLASHINFER
 
 
 echo "HF_HOME            : ${HF_HOME}"
 echo "PYTHONPATH         : ${PYTHONPATH}"
 echo "TOKENIZERS_PARALLELISM=${TOKENIZERS_PARALLELISM}"
 echo "HYDRA_FULL_ERROR   : ${HYDRA_FULL_ERROR}"
+echo "VLLM_ATTENTION_BACKEND : ${VLLM_ATTENTION_BACKEND}"
 
 
 # ==============================================================================

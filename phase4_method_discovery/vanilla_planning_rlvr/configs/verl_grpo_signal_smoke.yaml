@@ -1,16 +1,4 @@
-# phase4_method_discovery/vanilla_planning_rlvr/configs/verl_grpo_smoke.yaml
-#
-# 1-step integration smoke test for:
-#
-#   planner rollout
-#     -> PlanningRewardManager
-#     -> FrozenCoderWorker
-#     -> DeepCoder TACO execution
-#     -> binary reward
-#     -> GRPO advantage
-#     -> one actor update
-#
-# Base: verl release/v0.8.0 ppo_trainer config.
+# phase4_method_discovery/vanilla_planning_rlvr/configs/verl_grpo_signal_smoke.yaml
 
 defaults:
   - ppo_trainer
@@ -22,7 +10,7 @@ defaults:
 
 data:
   train_files:
-    - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/train.parquet
+    - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/grpo_signal_smoke.parquet
 
   val_files:
     - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/val.parquet
@@ -31,9 +19,9 @@ data:
   val_batch_size: 1
 
   max_prompt_length: 2048
-  max_response_length: 256
+  max_response_length: 384
 
-  shuffle: true
+  shuffle: false
   validation_shuffle: false
 
   dataloader_num_workers: 0
@@ -115,7 +103,7 @@ actor_rollout_ref:
     load_format: auto
 
     # Keep GRPO group size intact.
-    n: 4
+    n: 16
 
     temperature: 1.0
     top_p: 1.0
@@ -123,14 +111,14 @@ actor_rollout_ref:
     do_sample: true
 
     prompt_length: 2048
-    response_length: 256
+    response_length: 384
 
     # Aggressive memory setting for one-step smoke only.
     gpu_memory_utilization: 0.25
 
-    # 2048 prompt + 256 response = 2304,
+    # 2048 prompt + 384 response = 2432,
     # leave some context margin.
-    max_model_len: 2560
+    max_model_len: 3072
 
     enforce_eager: true
     free_cache_engine: true
@@ -139,8 +127,8 @@ actor_rollout_ref:
     data_parallel_size: 1
 
     # Smoke needs only one prompt x four plans.
-    max_num_batched_tokens: 2560
-    max_num_seqs: 4
+    max_num_batched_tokens: 3072
+    max_num_seqs: 16
 
     enable_chunked_prefill: true
     enable_prefix_caching: false
@@ -234,7 +222,7 @@ trainer:
 
   project_name: sLM-planning
 
-  experiment_name: vanilla_planning_rlvr_lora_grpo_smoke
+  experiment_name: vanilla_planning_rlvr_lora_grpo_signal_smoke
 
   logger:
     - console
@@ -261,7 +249,7 @@ trainer:
 
   log_val_generations: 0
 
-  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_lora_grpo_smoke
+  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_lora_grpo_signal_smoke
 
   default_hdfs_dir: null
 
