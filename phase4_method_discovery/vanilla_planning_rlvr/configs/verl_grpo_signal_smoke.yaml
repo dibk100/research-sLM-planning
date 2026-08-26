@@ -19,7 +19,7 @@ data:
   val_batch_size: 1
 
   max_prompt_length: 2048
-  max_response_length: 384
+  max_response_length: 512
 
   shuffle: false
   validation_shuffle: false
@@ -111,14 +111,14 @@ actor_rollout_ref:
     do_sample: true
 
     prompt_length: 2048
-    response_length: 384
+    response_length: 512
 
     # Aggressive memory setting for one-step smoke only.
     gpu_memory_utilization: 0.25
 
-    # 2048 prompt + 384 response = 2432,
-    # leave some context margin.
-    max_model_len: 3072
+    # 2048 prompt + 512 response = 2560,
+    # leave some context margin. 
+    max_model_len: 3072     # 3328
 
     enforce_eager: true
     free_cache_engine: true

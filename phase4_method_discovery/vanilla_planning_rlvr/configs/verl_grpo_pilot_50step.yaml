@@ -1,0 +1,203 @@
+# phase4_method_discovery/vanilla_planning_rlvr/configs/
+# verl_grpo_pilot_50step.yaml
+
+defaults:
+  - ppo_trainer
+  - _self_
+
+data:
+  # signal-smoke 1문제가 아니라 실제 training parquet으로 복귀
+  train_files:
+    - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/train.parquet
+
+  val_files:
+    - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/val.parquet
+
+  train_batch_size: 1
+  val_batch_size: 1
+
+  max_prompt_length: 2048
+  max_response_length: 512
+
+  shuffle: true
+  validation_shuffle: false
+
+  dataloader_num_workers: 0
+  filter_overlong_prompts: true
+  truncation: error
+
+
+actor_rollout_ref:
+  model:
+    path: Qwen/Qwen2.5-Coder-3B-Instruct
+    tokenizer_path: Qwen/Qwen2.5-Coder-3B-Instruct
+    trust_remote_code: true
+
+    enable_gradient_checkpointing: true
+    use_remove_padding: false
+
+    override_config:
+      attn_implementation: sdpa
+
+    lora_rank: 16
+    lora_alpha: 32
+    target_modules: all-linear
+    lora_adapter_path: null
+
+  actor:
+    strategy: fsdp
+
+    ppo_mini_batch_size: 1
+    ppo_micro_batch_size_per_gpu: 1
+
+    use_dynamic_bsz: true
+    ppo_max_token_len_per_gpu: 4096
+
+    ppo_epochs: 1
+    shuffle: false
+
+    grad_clip: 1.0
+    clip_ratio: 0.2
+    entropy_coeff: 0.0
+
+    use_kl_loss: false
+
+    fsdp_config:
+      param_offload: true
+      optimizer_offload: false
+
+    optim:
+      lr: 1.0e-6
+      lr_warmup_steps: 0
+      lr_warmup_steps_ratio: 0.0
+      min_lr_ratio: null
+      warmup_style: constant
+
+  rollout:
+    name: vllm
+    mode: async
+    dtype: bfloat16
+
+    # vLLM loads the frozen base checkpoint directly.
+    load_format: safetensors
+  
+    layered_summon: false
+    
+    n: 16
+
+    temperature: 1.0
+    top_p: 1.0
+    top_k: -1
+    do_sample: true
+
+    prompt_length: 2048
+    response_length: 512
+
+    gpu_memory_utilization: 0.25
+    max_model_len: 3072
+
+    enforce_eager: true
+    free_cache_engine: true
+
+    tensor_model_parallel_size: 1
+    data_parallel_size: 1
+
+    max_num_batched_tokens: 3072
+    max_num_seqs: 16
+
+    enable_chunked_prefill: true
+    enable_prefix_caching: false
+
+    disable_log_stats: true
+    calculate_log_probs: true
+
+    checkpoint_engine:
+      backend: naive
+      update_weights_bucket_megabytes: 32
+
+    val_kwargs:
+      n: 1
+      temperature: 0.0
+      top_p: 1.0
+      top_k: -1
+      do_sample: false
+    
+    agent:
+      num_workers: 1
+
+
+algorithm:
+  adv_estimator: grpo
+  gamma: 1.0
+  lam: 1.0
+  norm_adv_by_std_in_grpo: true
+  use_kl_in_reward: false
+
+
+reward:
+  num_workers: 1
+
+  custom_reward_function:
+    path: /home/dibaeck/workspace/project_sLM_planning/phase4_method_discovery/vanilla_planning_rlvr/reward/planning_execution_reward.py
+    name: compute_score
+
+  reward_manager:
+    source: importlib
+    name: PlanningRewardManager
+
+    module:
+      path: /home/dibaeck/workspace/project_sLM_planning/phase4_method_discovery/vanilla_planning_rlvr/reward/planning_reward_manager.py
+      name: PlanningRewardManager
+
+  reward_model:
+    enable: false
+    enable_resource_pool: false
+
+
+trainer:
+  device: cuda
+  nnodes: 1
+  n_gpus_per_node: 1
+
+  project_name: sLM-planning
+  experiment_name: vanilla_planning_rlvr_lora_pilot50
+
+  logger:
+    - console
+    - wandb
+
+  total_training_steps: 50
+  total_epochs: 1
+
+  val_before_train: false
+  val_only: false
+
+  # Pilot에서는 너무 자주 validation 하지 않음. 10 -> -1
+  test_freq: -1
+
+  save_freq: -1   # 25 -> -1
+
+  resume_mode: disable
+  critic_warmup: 0
+
+  log_val_generations: 0      # 4
+
+  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_lora_pilot50
+  default_hdfs_dir: null
+
+
+transfer_queue:
+  enable: true
+
+  metrics:
+    enabled: false
+
+  backend:
+    storage_backend: SimpleStorage
+
+    SimpleStorage:
+      total_storage_size: 100000
+      num_data_storage_units: 1     # 기본값 8에서 1로 낮춤
+
+global_profiler:
+  steps: null
