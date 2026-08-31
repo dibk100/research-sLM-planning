@@ -1,0 +1,149 @@
+[
+  {
+    "problem_id": "abc348_b",
+    "title": "Farthest Point",
+    "difficulty": "easy",
+    "transition": "recovered",
+    "base": {
+      "passed": false,
+      "status": "WRONG_ANSWER",
+      "test_pass_ratio": 0.8636363636363636,
+      "plan": "- **Core Algorithm**: For each point, calculate the Euclidean distance to all other points and keep track of the farthest point.\n- **Decision Condition**: For each point, compare distances to all other points and update the farthest point if a larger distance is found.\n- **Key Invariant**: At any point in the algorithm, the farthest point from the current point is correctly identified.\n- **Data Structures**: Use a list to store the distances from each point to all others.\n- **Important Edge Cases**: Handle ties by selecting the smallest ID number in case of multiple farthest points.\n- **Time Complexity**: O(N^2) due to the nested loops for calculating distances.\n- **Space Complexity**: O(N^2) for storing the distance matrix.",
+      "code": "```python\nimport math\n\ndef main():\n    N = int(input())\n    points = []\n    \n    # Read the coordinates of each point\n    for _ in range(N):\n        x, y = map(int, input().split())\n        points.append((x, y))\n    \n    # Function to calculate the Euclidean distance between two points\n    def euclidean_distance(p1, p2):\n        return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)\n    \n    # Process each point to find the farthest point\n    for i in range(N):\n        max_distance = -1\n        farthest_point_id = -1\n        \n        # Calculate distances from point i to all other points\n        for j in range(N):\n            if i != j:\n                distance = euclidean_distance(points[i], points[j])\n                \n                # Update the farthest point if a larger distance is found\n                if distance > max_distance or (distance == max_distance and points[j][0] < points[farthest_point_id][0]):\n                    max_distance = distance\n                    farthest_point_id = j\n        \n        # Print the ID of the farthest point\n        print(farthest_point_id + 1)\n\nif __name__ == \"__main__\":\n    main()\n```"
+    },
+    "step25": {
+      "passed": true,
+      "status": "PASS",
+      "test_pass_ratio": 1.0,
+      "plan": "- **Core Algorithm**: For each point, calculate the Euclidean distance to all other points and keep track of the farthest point.\n- **Decision Condition**: For each point, compare distances to all other points and update the farthest point if a larger distance is found.\n- **Key Invariant**: The farthest point from any given point is always updated correctly as the algorithm iterates through all other points.\n- **Data Structures**: Use a list to store the distances from each point to all others.\n- **Important Edge Cases**: Handle ties by selecting the smallest ID number in case of multiple farthest points.\n- **Time Complexity**: O(N^2) due to the nested loops for calculating distances.\n- **Space Complexity**: O(N^2) for storing the distance matrix.",
+      "code": "```python\nimport math\n\ndef main():\n    N = int(input())\n    points = []\n    \n    # Read input points\n    for _ in range(N):\n        x, y = map(int, input().split())\n        points.append((x, y))\n    \n    # Initialize the result list\n    result = []\n    \n    # Calculate the distance from each point to all other points\n    for i in range(N):\n        max_distance = -1\n        farthest_point_id = -1\n        \n        for j in range(N):\n            if i != j:\n                distance = math.sqrt((points[i][0] - points[j][0]) ** 2 + (points[i][1] - points[j][1]) ** 2)\n                if distance > max_distance:\n                    max_distance = distance\n                    farthest_point_id = j\n        \n        # Append the ID of the farthest point to the result list\n        result.append(farthest_point_id + 1)\n    \n    # Print the result\n    for id in result:\n        print(id)\n\nif __name__ == \"__main__\":\n    main()\n```"
+    },
+    "test_pass_ratio_delta": 0.13636363636363635
+  },
+  {
+    "problem_id": "abc355_a",
+    "title": "Who Ate the Cake?",
+    "difficulty": "easy",
+    "transition": "recovered",
+    "base": {
+      "passed": false,
+      "status": "WRONG_ANSWER",
+      "test_pass_ratio": 0.5833333333333334,
+      "plan": "- Core Algorithm: Determine the culprit based on the memories of Ringo and Snuke.\n- Decision Condition: The culprit can be uniquely identified if exactly one of the witnesses remembers the correct person as the culprit.\n- Key Invariant: The culprit must be one of the three suspects (1, 2, or 3).\n- Necessary Data Structures: None needed.\n- Important Edge Cases:\n  - If both witnesses remember the same person as the culprit, print -1.\n  - If neither witness remembers the correct person, print -1.\n- Time Complexity: O(1)\n- Space Complexity: O(1)",
+      "code": "```python\n# Read input\nA, B = map(int, input().split())\n\n# Determine the culprit based on the memories of Ringo and Snuke\nif A != B:\n    # If exactly one witness remembers the correct person, the culprit is the third person\n    print(3)\nelse:\n    # If both witnesses remember the same person, the culprit cannot be uniquely identified\n    print(-1)\n```"
+    },
+    "step25": {
+      "passed": true,
+      "status": "PASS",
+      "test_pass_ratio": 1.0,
+      "plan": "- Core Algorithm: Determine the culprit based on the memories of Ringo and Snuke.\n- Decision Condition: Check if the intersection of the two sets of remembered suspects is unique.\n- Key Invariant: The culprit must be in both sets of remembered suspects.\n- Necessary Data Structures: None needed.\n- Important Edge Cases: \n  - If both Ringo and Snuke remember the same suspect, the culprit is uniquely identified.\n  - If neither Ringo nor Snuke remembers any suspect, the culprit cannot be uniquely identified.\n  - If both Ringo and Snuke remember different suspects, the culprit cannot be uniquely identified.\n- Time Complexity: O(1)\n- Space Complexity: O(1)",
+      "code": "```python\n# Read input\nA, B = map(int, input().split())\n\n# Determine the culprit based on the memories of Ringo and Snuke\nif A == B:\n    print(-1)\nelif A == 1 and B == 2:\n    print(3)\nelif A == 1 and B == 3:\n    print(2)\nelif A == 2 and B == 1:\n    print(3)\nelif A == 2 and B == 3:\n    print(1)\nelif A == 3 and B == 1:\n    print(2)\nelif A == 3 and B == 2:\n    print(1)\nelse:\n    print(-1)\n```"
+    },
+    "test_pass_ratio_delta": 0.41666666666666663
+  },
+  {
+    "problem_id": "abc365_c",
+    "title": "Transportation Expenses",
+    "difficulty": "medium",
+    "transition": "regressed",
+    "base": {
+      "passed": true,
+      "status": "PASS",
+      "test_pass_ratio": 1.0,
+      "plan": "- **Core Algorithm**: Binary Search\n- **Decision Condition**: Find the maximum value of \\( x \\) such that the sum of the minimums of \\( x \\) and each \\( A_i \\) does not exceed \\( M \\).\n- **Key Invariant**: The binary search invariant is that if the sum of the minimums is less than or equal to \\( M \\), then any larger value of \\( x \\) would also satisfy the condition.\n- **Data Structures**: None needed beyond basic variables.\n- **Important Edge Cases**:\n  - If \\( M \\) is less than the sum of all \\( A_i \\), the subsidy limit cannot be made to be less than the maximum \\( A_i \\).\n  - If \\( M \\) is greater than or equal to the sum of all \\( A_i \\), the subsidy limit can be set to any value up to the maximum \\( A_i \\).\n- **Time Complexity**: \\( O(N \\log M) \\)\n- **Space Complexity**: \\( O(1) \\)",
+      "code": "```python\nimport sys\n\ndef max_subsidy_limit(N, M, A):\n    # Initialize the binary search range\n    left, right = 0, max(A)\n    \n    while left <= right:\n        mid = (left + right) // 2\n        total_subsidy = sum(min(mid, ai) for ai in A)\n        \n        if total_subsidy <= M:\n            left = mid + 1\n        else:\n            right = mid - 1\n    \n    # If left exceeds the maximum value in A, it means we can't find a valid x\n    if left > max(A):\n        return \"infinite\"\n    else:\n        return left - 1\n\n# Read input\nN, M = map(int, input().split())\nA = list(map(int, input().split()))\n\n# Calculate and print the result\nprint(max_subsidy_limit(N, M, A))\n```"
+    },
+    "step25": {
+      "passed": false,
+      "status": "WRONG_ANSWER",
+      "test_pass_ratio": 0.0,
+      "plan": "- **Core Algorithm**: Binary Search\n- **Decision Condition**: Find the maximum value of \\( x \\) such that the sum of subsidies does not exceed \\( M \\).\n- **Key Invariant**: The sum of subsidies should not exceed \\( M \\) when \\( x \\) is chosen.\n- **Data Structures**: Use a list to store the transportation costs \\( A_i \\).\n- **Important Edge Cases**: \n  - If \\( M \\) is less than the sum of all \\( A_i \\), the subsidy limit cannot be made to fit within the budget, so return \"infinite\".\n  - If \\( M \\) is greater than or equal to the sum of all \\( A_i \\), the subsidy limit can be set to the maximum value of \\( A_i \\).\n- **Time Complexity**: \\( O(N \\log M) \\)\n- **Space Complexity**: \\( O(1) \\)",
+      "code": "```python\nimport sys\n\ndef max_subsidy_limit(N, M, A):\n    # Check if the total cost exceeds the budget\n    if sum(A) > M:\n        return \"infinite\"\n    \n    # Initialize binary search bounds\n    left, right = 0, max(A)\n    \n    while left <= right:\n        mid = (left + right) // 2\n        total_subsidy = sum(min(mid, a) for a in A)\n        \n        if total_subsidy <= M:\n            left = mid + 1\n        else:\n            right = mid - 1\n    \n    # The maximum valid subsidy limit is one less than the left boundary\n    return left - 1\n\n# Read input\nN, M = map(int, input().split())\nA = list(map(int, input().split()))\n\n# Calculate and print the result\nprint(max_subsidy_limit(N, M, A))\n```"
+    },
+    "test_pass_ratio_delta": -1.0
+  },
+  {
+    "problem_id": "abc375_a",
+    "title": "Seats",
+    "difficulty": "easy",
+    "transition": "recovered",
+    "base": {
+      "passed": false,
+      "status": "RUNTIME_ERROR",
+      "test_pass_ratio": 0.6956521739130435,
+      "plan": "- **Core Algorithm**: Iterate through the string `S` and check for the pattern \"#..#\" where seat `i`, `i+1`, and `i+2` are occupied and unoccupied respectively.\n- **Decision Condition**: For each index `i` from 1 to `N-2`, check if `S[i] == '#'`, `S[i+1] == '.'`, and `S[i+2] == '#'`.\n- **Key Invariant**: The invariant is that the loop iterates over all possible positions where the condition can be satisfied.\n- **Data Structures**: Use a simple loop to iterate through the string.\n- **Important Edge Cases**: \n  - If `N < 3`, no valid positions exist, so the output should be 0.\n  - If `N == 3`, only one position (if the first three characters form \"#..#\") can be valid.\n- **Time Complexity**: O(N), where N is the length of the string `S`. This is because we need to check each character once.\n- **Space Complexity**: O(1), as we are using a constant amount of extra space.",
+      "code": "```python\nN = int(input())\nS = input()\n\ncount = 0\nfor i in range(1, N - 1):\n    if S[i] == '#' and S[i + 1] == '.' and S[i + 2] == '#':\n        count += 1\n\nprint(count)\n```"
+    },
+    "step25": {
+      "passed": true,
+      "status": "PASS",
+      "test_pass_ratio": 1.0,
+      "plan": "- **Core Algorithm**: Iterate through the string `S` and check for the condition where `S[i] == '#'`, `S[i+1] == '.'`, and `S[i+2] == '#'`.\n- **Decision Condition**: For each index `i` from 0 to `N-3`, check if the conditions are met.\n- **Key Invariant**: The invariant is that the loop iterates through the string without exceeding the bounds, ensuring all possible indices are checked.\n- **Data Structures**: No additional data structures are needed beyond the input string `S`.\n- **Edge Cases**:\n  - If `N < 3`, no valid indices exist, so the output should be 0.\n  - If `N == 3`, only the first index can be checked, and the output should be 0 if neither `S[0]` nor `S[2]` is '#'.\n- **Time Complexity**: O(N), where N is the length of the string `S`. This is because we make a single pass through the string.\n- **Space Complexity**: O(1), as we only use a constant amount of extra space.",
+      "code": "```python\nN = int(input())\nS = input()\n\ncount = 0\nfor i in range(N - 2):\n    if S[i] == '#' and S[i + 1] == '.' and S[i + 2] == '#':\n        count += 1\n\nprint(count)\n```"
+    },
+    "test_pass_ratio_delta": 0.30434782608695654
+  },
+  {
+    "problem_id": "abc382_b",
+    "title": "Daily Cookie 2",
+    "difficulty": "easy",
+    "transition": "recovered",
+    "base": {
+      "passed": false,
+      "status": "WRONG_ANSWER",
+      "test_pass_ratio": 0.5813953488372093,
+      "plan": "- **Core Algorithm**: Use a stack to keep track of the indices of boxes containing cookies. For each day, pop the top index from the stack and check if the next box to the right also contains a cookie. If it does, push the next box's index onto the stack.\n- **Decision Condition**: For each box, if its index is in the stack after processing all days, it will contain a cookie.\n- **Key Invariant**: The stack should always contain indices of boxes that contain cookies, and the stack should be processed in reverse order to ensure the rightmost cookie is chosen each day.\n- **Data Structures**: Use a stack to store indices of boxes containing cookies.\n- **Important Edge Cases**: \n  - If there are no cookies in any box, the output should be `...`.\n  - If there are fewer than D boxes with cookies, the output should reflect that the remaining boxes do not contain cookies.\n- **Time Complexity**: O(N + D), where N is the number of boxes and D is the number of days. Each box is pushed and popped from the stack at most once.\n- **Space Complexity**: O(D), where D is the number of days, due to the stack storing indices of boxes containing cookies.",
+      "code": "```python\nimport sys\n\ndef solve():\n    N, D = map(int, input().split())\n    S = input()\n    \n    # Initialize the stack with indices of boxes containing cookies\n    stack = []\n    for i in range(N):\n        if S[i] == '@':\n            stack.append(i)\n    \n    # Process each day\n    for _ in range(D):\n        if stack:\n            # Pop the rightmost box with a cookie\n            last_index = stack.pop()\n            # Check if the next box to the right also contains a cookie\n            if last_index + 1 < N and S[last_index + 1] == '@':\n                stack.append(last_index + 1)\n    \n    # Determine the result for each box\n    result = ['.' for _ in range(N)]\n    for i in stack:\n        result[i] = '@'\n    \n    print(''.join(result))\n\n# Read input and call the solve function\nsolve()\n```"
+    },
+    "step25": {
+      "passed": true,
+      "status": "PASS",
+      "test_pass_ratio": 1.0,
+      "plan": "- **Core Algorithm**: Use a stack to keep track of the indices of boxes containing cookies. For each day, pop the top index from the stack and check if the next box to the right also contains a cookie. If so, pop the next index from the stack and continue this process until no more cookies can be eaten.\n- **Decision Condition**: For each box, determine if it will contain a cookie after D days by checking if its index is still in the stack after processing all possible days.\n- **Key Invariant**: The stack should always contain indices of boxes that contain cookies and are to the right of the current box being processed.\n- **Data Structures**: Use a stack to store indices of boxes containing cookies.\n- **Edge Cases**: \n  - If there are no cookies in any box, the output should be all dots.\n  - If all boxes contain cookies, the output should be all at signs.\n- **Time Complexity**: O(N + D), where N is the number of boxes and D is the number of days. This is because each box is pushed and popped from the stack at most once.\n- **Space Complexity**: O(D), where D is the number of days, due to the stack storing indices of boxes containing cookies.",
+      "code": "```python\nimport sys\n\ndef solve():\n    N, D = map(int, input().split())\n    S = input()\n    \n    # Initialize the stack with indices of boxes containing cookies\n    stack = []\n    for i in range(N):\n        if S[i] == '@':\n            stack.append(i)\n    \n    # Process each day\n    for _ in range(D):\n        if stack:\n            # Pop the rightmost box with a cookie\n            last_index = stack.pop()\n            # Check if the next box to the right also contains a cookie\n            while stack and stack[-1] > last_index + 1:\n                stack.pop()\n    \n    # Determine the result for each box\n    result = ['.' for _ in range(N)]\n    for i in range(N):\n        if i in stack:\n            result[i] = '@'\n    \n    print(''.join(result))\n\nsolve()\n```"
+    },
+    "test_pass_ratio_delta": 0.41860465116279066
+  },
+  {
+    "problem_id": "abc391_b",
+    "title": "Seek Grid",
+    "difficulty": "easy",
+    "transition": "recovered",
+    "base": {
+      "passed": false,
+      "status": "RUNTIME_ERROR",
+      "test_pass_ratio": 0.07142857142857142,
+      "plan": "- **Core Algorithm**: Sliding Window Technique\n- **Decision Condition**: Find a subgrid in S that matches T exactly.\n- **Key Invariant**: The sliding window of size MxM must match the corresponding subgrid in T.\n- **Data Structures**: No additional data structures required beyond the input arrays.\n- **Important Edge Cases**: \n  - If M > N, it's impossible to find a matching subgrid, so the output should be \"No match\".\n  - If T is empty, the output should be \"0 0\".\n- **Time Complexity**: O(N^2 * M^2)\n- **Space Complexity**: O(1)",
+      "code": "```python\nimport sys\n\ndef find_subgrid(S, T):\n    N, M = len(S), len(T)\n    \n    if M > N:\n        print(\"No match\")\n        return\n    \n    if not T:\n        print(\"0 0\")\n        return\n    \n    for i in range(N - M + 1):\n        for j in range(N - M + 1):\n            match = True\n            for x in range(M):\n                for y in range(M):\n                    if S[i + x][j + y] != T[x][y]:\n                        match = False\n                        break\n                if not match:\n                    break\n            if match:\n                print(i + 1, j + 1)\n                return\n    \n    print(\"No match\")\n\nif __name__ == \"__main__\":\n    input = sys.stdin.read\n    data = input().split()\n    N = int(data[0])\n    M = int(data[1])\n    S = [data[i:i+N] for i in range(2, 2+N*N, N)]\n    T = [data[i:i+M] for i in range(2+N*N, 2+N*N+M*M, M)]\n    find_subgrid(S, T)\n```"
+    },
+    "step25": {
+      "passed": true,
+      "status": "PASS",
+      "test_pass_ratio": 1.0,
+      "plan": "- **Core Algorithm**: Use a sliding window approach to check each possible subgrid of size MxM in grid S against grid T.\n- **Decision Condition**: For each position (a, b) in grid S, check if the subgrid starting at (a, b) matches grid T.\n- **Key Invariant**: Ensure that the sliding window does not exceed the boundaries of grid S.\n- **Data Structures**: Use a 2D array to represent grid S and grid T.\n- **Important Edge Cases**: Handle cases where M is greater than N by adjusting the search range accordingly.\n- **Time Complexity**: O((N-M+1)^2 * M^2), where N is the number of rows and columns in grid S, and M is the size of the subgrid T.\n- **Space Complexity**: O(1), as no additional data structures are used beyond the input grids.",
+      "code": "```python\nimport sys\n\ndef main():\n    N, M = map(int, sys.stdin.readline().split())\n    S = [sys.stdin.readline().strip() for _ in range(N)]\n    T = [sys.stdin.readline().strip() for _ in range(M)]\n\n    for a in range(N - M + 1):\n        for b in range(N - M + 1):\n            match = True\n            for i in range(M):\n                for j in range(M):\n                    if S[a + i][b + j] != T[i][j]:\n                        match = False\n                        break\n                if not match:\n                    break\n            if match:\n                print(a + 1, b + 1)\n                return\n\nif __name__ == \"__main__\":\n    main()\n```"
+    },
+    "test_pass_ratio_delta": 0.9285714285714286
+  },
+  {
+    "problem_id": "abc399_f",
+    "title": "Range Power Sum",
+    "difficulty": "hard",
+    "transition": "recovered",
+    "base": {
+      "passed": false,
+      "status": "RUNTIME_ERROR",
+      "test_pass_ratio": 0.0,
+      "plan": "- **Core Algorithm**: Use prefix sums and dynamic programming to efficiently compute the required sum.\n- **Decision Condition**: For each subarray \\((A_l, A_{l+1}, \\ldots, A_r)\\), calculate the sum of its elements and raise it to the power \\(K\\), then add it to the total sum.\n- **Key Invariant**: Maintain a running sum of elements for each prefix of the array to quickly compute the sum of any subarray.\n- **Data Structures**: Use an array `prefix_sum` to store the cumulative sum of elements up to each index.\n- **Important Edge Cases**: Handle the case where \\(K = 1\\) separately, as raising to the power of 1 does not change the sum.\n- **Time Complexity**: \\(O(N \\log K + N^2)\\). The prefix sum calculation is \\(O(N)\\), and the nested loop for computing the sum of powers is \\(O(N^2)\\). The exponentiation is \\(O(\\log K)\\).\n- **Space Complexity**: \\(O(N)\\) for storing the prefix sums.",
+      "code": "```python\nimport sys\nfrom math import pow\n\ndef main():\n    # Read input\n    N, K = map(int, input().split())\n    A = list(map(int, input().split()))\n    \n    # Initialize prefix sum array\n    prefix_sum = [0] * (N + 1)\n    for i in range(1, N + 1):\n        prefix_sum[i] = prefix_sum[i - 1] + A[i - 1]\n    \n    # Initialize result\n    result = 0\n    \n    # Calculate the sum of powers\n    for l in range(1, N + 1):\n        for r in range(l, N + 1):\n            # Calculate the sum of the subarray\n            subarray_sum = prefix_sum[r] - prefix_sum[l - 1]\n            \n            # Add the result of raising the sum to the power K\n            result += int(pow(subarray_sum, K, 998244353))\n    \n    # Print the result\n    print(result)\n\nif __name__ == \"__main__\":\n    main()\n```"
+    },
+    "step25": {
+      "passed": true,
+      "status": "PASS",
+      "test_pass_ratio": 1.0,
+      "plan": "- **Core Algorithm**: Use prefix sums and dynamic programming to efficiently compute the required sum.\n- **Decision Condition**: For each subarray \\((A_l, A_{l+1}, \\ldots, A_r)\\), calculate the sum of its elements and raise it to the power \\(K\\), then add it to the total sum.\n- **Key Invariant**: Maintain a running sum of elements for each subarray to avoid recalculating sums multiple times.\n- **Data Structures**: Use a prefix sum array to store cumulative sums of the sequence.\n- **Important Edge Cases**: Handle the case where \\(K = 1\\) separately, as raising to the power of 1 does not change the sum.\n- **Time Complexity**: \\(O(N^2)\\) due to nested loops for calculating subarray sums and powers.\n- **Space Complexity**: \\(O(N)\\) for storing the prefix sum array.",
+      "code": "```python\nimport sys\nfrom typing import List\n\ndef main():\n    # Read input\n    N, K = map(int, input().split())\n    A = list(map(int, input().split()))\n    \n    # Initialize prefix sum array\n    prefix_sum = [0] * (N + 1)\n    for i in range(1, N + 1):\n        prefix_sum[i] = prefix_sum[i - 1] + A[i - 1]\n    \n    # Initialize result\n    result = 0\n    \n    # Calculate the sum of powers for each subarray\n    for l in range(1, N + 1):\n        for r in range(l, N + 1):\n            # Calculate the sum of the subarray\n            subarray_sum = prefix_sum[r] - prefix_sum[l - 1]\n            \n            # Calculate the power of the subarray sum\n            if K == 1:\n                power_result = subarray_sum\n            else:\n                power_result = pow(subarray_sum, K, 998244353)\n            \n            # Add the power result to the total result\n            result = (result + power_result) % 998244353\n    \n    # Print the result\n    print(result)\n\nif __name__ == \"__main__\":\n    main()\n```"
+    },
+    "test_pass_ratio_delta": 1.0
+  }
+]
