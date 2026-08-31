@@ -16,7 +16,7 @@ import numpy as np
 
 # used for debugging to time steps
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 from io import StringIO
 
@@ -181,7 +181,7 @@ def compile_code(code: str, timeout: int):
 def convert_line_to_decimals(line: str) -> tuple[bool, list[Decimal]]:
     try:
         decimal_line = [Decimal(elem) for elem in line.split()]
-    except (ValueError, TypeError):
+    except (InvalidOperation, ValueError, TypeError):
         return False, []
     return True, decimal_line
 
@@ -389,10 +389,12 @@ def run_test(sample, test=None, debug=False, timeout=6):
     
     """
     signal.signal(signal.SIGALRM, timeout_handler)
-
-    # Disable functionalities that can make destructive changes to the test.
-    # max memory is set to 4GB
-    reliability_guard()
+    
+    # Disable destructive functionality and cap memory used by generated code.
+    # This evaluator runs inside a dedicated spawned subprocess, so the resource
+    # limit applies only to that evaluation subprocess.
+    MAXIMUM_MEMORY_BYTES = 4 * 1024**3  # 4 GiB
+    reliability_guard(maximum_memory_bytes=MAXIMUM_MEMORY_BYTES)
 
     if debug:
         print(f"start = {datetime.now().time()}")

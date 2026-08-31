@@ -391,39 +391,43 @@ class TACOEvaluator:
             )
         }
 
-    # ==================================================================
+    # ==============================================================================
     # rLLM: multiprocessing wrapper
-    # ==================================================================
+    # ==============================================================================
 
     @staticmethod
     def _temp_run(
         sample: dict[str, str],
         generation: str,
         debug: bool,
-        result: Any,
-        metadata_list: Any,
+        child_conn: Any,
         timeout: int,
     ) -> None:
         """
-        Same role as rLLM's _temp_run().
+        Run the DeepCoder/rLLM LiveCodeBench evaluator in an isolated
+        spawned subprocess.
+
+        The result is returned to the parent through a one-way Pipe.
+
+        Using an explicit "spawn" context avoids inheriting the large
+        Ray / vLLM / CUDA IPC address space that would otherwise be
+        inherited by Linux's default "fork" multiprocessing method.
         """
 
         try:
-            res, metadata = (
-                deepcoder_lcb_run_test(
-                    sample,
-                    test=generation,
-                    debug=debug,
-                    timeout=timeout,
-                )
+            res, metadata = deepcoder_lcb_run_test(
+                sample,
+                test=generation,
+                debug=debug,
+                timeout=timeout,
             )
 
-            result.append(
-                res
-            )
-
-            metadata_list.append(
-                metadata
+            child_conn.send(
+                {
+                    "ok": True,
+                    "result": res,
+                    "metadata": metadata,
+                }
             )
 
         except Exception as exc:
@@ -435,9 +439,26 @@ class TACOEvaluator:
                     f"{type(exc).__name__}: {exc}"
                 )
 
-    # ==================================================================
+            try:
+                child_conn.send(
+                    {
+                        "ok": False,
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    }
+                )
+            except Exception:
+                pass
+
+        finally:
+            try:
+                child_conn.close()
+            except Exception:
+                pass
+
+    # ==============================================================================
     # rLLM: lcb_check_correctness_v2
-    # ==================================================================
+    # ==============================================================================
 
     @classmethod
     def lcb_check_correctness_v2(
@@ -457,7 +478,14 @@ class TACOEvaluator:
         Reproduce rLLM's lcb_check_correctness_v2() using the vendored
         DeepCoder/rLLM LiveCodeBench runner.
 
-        Note:
+        Important:
+        The evaluation subprocess uses an explicit "spawn" multiprocessing
+        context rather than Linux's default "fork".
+
+        This is necessary inside the Phase 4 Ray/vLLM training runtime,
+        where forked evaluator processes may inherit a very large address
+        space containing CUDA IPC / shared-memory mappings.
+
         The underlying runner is fail-fast. Therefore the number of
         returned test results can be smaller than the number of
         available tests.
@@ -474,30 +502,38 @@ class TACOEvaluator:
             )
         )
 
-        manager = (
-            multiprocessing.Manager()
+        # ------------------------------------------------------------------
+        # Explicit spawn context.
+        #
+        # Do NOT use multiprocessing.set_start_method("spawn") globally.
+        # Ray/vLLM own multiprocessing behavior must remain untouched.
+        # ------------------------------------------------------------------
+
+        ctx = multiprocessing.get_context(
+            "spawn"
         )
 
-        result = manager.list()
-        metadata_list = (
-            manager.list()
-        )
-
-        process = (
-            multiprocessing.Process(
-                target=cls._temp_run,
-                args=(
-                    processed_sample,
-                    generation,
-                    debug,
-                    result,
-                    metadata_list,
-                    timeout,
-                ),
+        parent_conn, child_conn = (
+            ctx.Pipe(
+                duplex=False
             )
         )
 
+        process = ctx.Process(
+            target=cls._temp_run,
+            args=(
+                processed_sample,
+                generation,
+                debug,
+                child_conn,
+                timeout,
+            ),
+        )
+
         process.start()
+
+        # Parent never writes to the child endpoint.
+        child_conn.close()
 
         in_outs = json.loads(
             processed_sample[
@@ -533,13 +569,18 @@ class TACOEvaluator:
             ),
         }
 
-        # --------------------------------------------------------------
+        # ------------------------------------------------------------------
         # Global process timeout
-        # --------------------------------------------------------------
+        # ------------------------------------------------------------------
 
         if process.is_alive():
             process.kill()
             process.join()
+
+            try:
+                parent_conn.close()
+            except Exception:
+                pass
 
             detailed_results[
                 "total_tests"
@@ -580,11 +621,38 @@ class TACOEvaluator:
                 detailed_results,
             )
 
-        # --------------------------------------------------------------
-        # No result returned from child process
-        # --------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # Receive child result.
+        # ------------------------------------------------------------------
 
-        if not result:
+        payload: dict[
+            str,
+            Any,
+        ] | None = None
+
+        try:
+            if parent_conn.poll():
+                payload = (
+                    parent_conn.recv()
+                )
+
+        except (
+            EOFError,
+            OSError,
+        ):
+            payload = None
+
+        finally:
+            try:
+                parent_conn.close()
+            except Exception:
+                pass
+
+        # ------------------------------------------------------------------
+        # No result returned from child process
+        # ------------------------------------------------------------------
+
+        if not payload:
             detailed_results[
                 "total_tests"
             ] = num_available_tests
@@ -601,28 +669,88 @@ class TACOEvaluator:
                 detailed_results,
             )
 
-        raw_results = list(
-            result[0]
-        )
+        # ------------------------------------------------------------------
+        # Child evaluator raised.
+        # ------------------------------------------------------------------
 
-        if metadata_list:
-            raw_metadata = (
-                metadata_list[0]
+        if not bool(
+            payload.get(
+                "ok",
+                False,
+            )
+        ):
+            error_type = str(
+                payload.get(
+                    "error_type",
+                    "EvaluationError",
+                )
             )
 
-            try:
-                metadata = dict(
-                    raw_metadata
+            error_message = str(
+                payload.get(
+                    "error_message",
+                    "",
                 )
-            except Exception:
-                metadata = {}
+            )
 
-        else:
+            detailed_results[
+                "total_tests"
+            ] = num_available_tests
+
+            detailed_results[
+                "error"
+            ] = (
+                f"{error_type}: "
+                f"{error_message}"
+            )
+
+            detailed_results[
+                "error_message"
+            ] = error_message
+
+            return (
+                False,
+                detailed_results,
+            )
+
+        # ------------------------------------------------------------------
+        # Normal evaluator result.
+        # ------------------------------------------------------------------
+
+        raw_result_payload = (
+            payload.get(
+                "result",
+                [],
+            )
+        )
+
+        try:
+            raw_results = list(
+                raw_result_payload
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            raw_results = []
+
+        raw_metadata = (
+            payload.get(
+                "metadata",
+                {},
+            )
+        )
+
+        try:
+            metadata = dict(
+                raw_metadata
+            )
+        except Exception:
             metadata = {}
 
-        # --------------------------------------------------------------
+        # ------------------------------------------------------------------
         # Build detailed results
-        # --------------------------------------------------------------
+        # ------------------------------------------------------------------
 
         test_results: list[
             dict[str, Any]
@@ -669,9 +797,12 @@ class TACOEvaluator:
             if raw_result is True
         )
 
-        all_passed = all(
-            raw_result is True
-            for raw_result in raw_results
+        all_passed = (
+            bool(raw_results)
+            and all(
+                raw_result is True
+                for raw_result in raw_results
+            )
         )
 
         detailed_results[
@@ -700,7 +831,7 @@ class TACOEvaluator:
             all_passed,
             detailed_results,
         )
-
+    
     # ==================================================================
     # rLLM result -> local EvaluationResult
     # ==================================================================
