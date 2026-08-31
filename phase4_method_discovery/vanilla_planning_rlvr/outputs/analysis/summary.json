@@ -1,0 +1,51 @@
+{
+  "overall": {
+    "base": {
+      "total": 300,
+      "passed": 49,
+      "pass_rate": 0.16333333333333333,
+      "mean_test_pass_ratio": 0.3276091889995966
+    },
+    "step25": {
+      "total": 300,
+      "passed": 54,
+      "pass_rate": 0.18,
+      "mean_test_pass_ratio": 0.34650278756471325
+    },
+    "step50": {
+      "total": 300,
+      "passed": 51,
+      "pass_rate": 0.17,
+      "mean_test_pass_ratio": 0.3260239341620153
+    }
+  },
+  "transitions": {
+    "base_to_step25": {
+      "total": 300,
+      "both_pass": 48,
+      "both_fail": 245,
+      "recovered": 6,
+      "regressed": 1,
+      "net_gain": 5,
+      "mcnemar_exact_p": 0.125
+    },
+    "base_to_step50": {
+      "total": 300,
+      "both_pass": 45,
+      "both_fail": 245,
+      "recovered": 6,
+      "regressed": 4,
+      "net_gain": 2,
+      "mcnemar_exact_p": 0.75390625
+    },
+    "step25_to_step50": {
+      "total": 300,
+      "both_pass": 49,
+      "both_fail": 244,
+      "recovered": 2,
+      "regressed": 5,
+      "net_gain": -3,
+      "mcnemar_exact_p": 0.453125
+    }
+  }
+}

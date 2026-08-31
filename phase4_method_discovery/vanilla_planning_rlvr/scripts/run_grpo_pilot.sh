@@ -290,217 +290,216 @@ echo "VLLM_ATTENTION_BACKEND : ${VLLM_ATTENTION_BACKEND}"
 # 9. Memory monitoring
 # ==============================================================================
 
-section "Start Memory Monitor"
+# section "Start Memory Monitor"
 
-MEM_LOG="${PROJECT_ROOT}/phase4_method_discovery/vanilla_planning_rlvr/outputs/memory_pilot_$(date +%Y%m%d_%H%M%S).log"
+# MEM_LOG="${PROJECT_ROOT}/phase4_method_discovery/vanilla_planning_rlvr/outputs/memory_pilot_$(date +%Y%m%d_%H%M%S).log"
 
-mkdir -p "$(dirname "${MEM_LOG}")"
+# mkdir -p "$(dirname "${MEM_LOG}")"
 
-echo "[INFO] Memory log: ${MEM_LOG}"
+# echo "[INFO] Memory log: ${MEM_LOG}"
 
-(
-    # Do not let monitoring commands terminate this loop under
-    # the parent shell's `set -euo pipefail`.
-    set +e
+# (
+#     # Do not let monitoring commands terminate this loop under
+#     # the parent shell's `set -euo pipefail`.
+#     set +e
 
-    # Heavy mapping snapshots are throttled to at most once per second.
-    LAST_HIGH_SNAPSHOT=0
+#     # Heavy mapping snapshots are throttled to at most once per second.
+#     LAST_HIGH_SNAPSHOT=0
 
-    while true; do
-        echo "================================================================================"
-        date '+%Y-%m-%d %H:%M:%S.%3N'
+#     while true; do
+#         echo "================================================================================"
+#         date '+%Y-%m-%d %H:%M:%S.%3N'
 
-        # ----------------------------------------------------------------------
-        # System memory
-        # ----------------------------------------------------------------------
+#         # ----------------------------------------------------------------------
+#         # System memory
+#         # ----------------------------------------------------------------------
 
-        echo "[MEM]"
-        free -h
+#         echo "[MEM]"
+#         free -h
 
-        # ----------------------------------------------------------------------
-        # Top RSS processes
-        # ----------------------------------------------------------------------
+#         # ----------------------------------------------------------------------
+#         # Top RSS processes
+#         # ----------------------------------------------------------------------
 
-        echo
-        echo "[TOP RSS]"
+#         echo
+#         echo "[TOP RSS]"
 
-        ps -eo pid,ppid,rss,vsz,%mem,comm,args --sort=-rss \
-            | head -n 25 \
-            || true
+#         ps -eo pid,ppid,rss,vsz,%mem,comm,args --sort=-rss \
+#             | head -n 25 \
+#             || true
 
-        # ----------------------------------------------------------------------
-        # GPU process memory
-        # ----------------------------------------------------------------------
+#         # ----------------------------------------------------------------------
+#         # GPU process memory
+#         # ----------------------------------------------------------------------
 
-        echo
-        echo "[GPU]"
+#         echo
+#         echo "[GPU]"
 
-        nvidia-smi \
-            --query-compute-apps=pid,process_name,used_memory \
-            --format=csv,noheader \
-            || true
+#         nvidia-smi \
+#             --query-compute-apps=pid,process_name,used_memory \
+#             --format=csv,noheader \
+#             || true
 
-        # ----------------------------------------------------------------------
-        # Detailed memory accounting for top RSS processes
-        #
-        # This runs every 0.2 sec and is relatively lightweight compared with
-        # dumping full process mappings.
-        # ----------------------------------------------------------------------
+#         # ----------------------------------------------------------------------
+#         # Detailed memory accounting for top RSS processes
+#         #
+#         # This runs every 0.2 sec and is relatively lightweight compared with
+#         # dumping full process mappings.
+#         # ----------------------------------------------------------------------
 
-        echo
-        echo "[TOP PROCESS MEMORY DETAIL]"
+#         echo
+#         echo "[TOP PROCESS MEMORY DETAIL]"
 
-        ps -eo pid=,rss=,args= --sort=-rss \
-            | head -n 15 \
-            | while read -r PID RSS ARGS; do
+#         ps -eo pid=,rss=,args= --sort=-rss \
+#             | head -n 15 \
+#             | while read -r PID RSS ARGS; do
 
-                if [[ -z "${PID}" || ! -r "/proc/${PID}/status" ]]; then
-                    continue
-                fi
+#                 if [[ -z "${PID}" || ! -r "/proc/${PID}/status" ]]; then
+#                     continue
+#                 fi
 
-                echo "------------------------------------------------------------"
-                echo "PID=${PID} RSS_KB=${RSS}"
-                echo "ARGS=${ARGS}"
+#                 echo "------------------------------------------------------------"
+#                 echo "PID=${PID} RSS_KB=${RSS}"
+#                 echo "ARGS=${ARGS}"
 
-                echo "[status]"
+#                 echo "[status]"
 
-                grep -E \
-                    'VmPeak|VmSize|VmRSS|RssAnon|RssFile|RssShmem|VmSwap' \
-                    "/proc/${PID}/status" \
-                    || true
+#                 grep -E \
+#                     'VmPeak|VmSize|VmRSS|RssAnon|RssFile|RssShmem|VmSwap' \
+#                     "/proc/${PID}/status" \
+#                     || true
 
-                if [[ -r "/proc/${PID}/smaps_rollup" ]]; then
-                    echo "[smaps_rollup]"
+#                 if [[ -r "/proc/${PID}/smaps_rollup" ]]; then
+#                     echo "[smaps_rollup]"
 
-                    grep -E \
-                        '^(Rss|Pss|Pss_Anon|Pss_File|Pss_Shmem|Anonymous|Swap):' \
-                        "/proc/${PID}/smaps_rollup" \
-                        || true
-                fi
-            done
+#                     grep -E \
+#                         '^(Rss|Pss|Pss_Anon|Pss_File|Pss_Shmem|Anonymous|Swap):' \
+#                         "/proc/${PID}/smaps_rollup" \
+#                         || true
+#                 fi
+#             done
 
-        # ----------------------------------------------------------------------
-        # Heavy mapping snapshot near memory pressure only
-        #
-        # The previous OOMs occurred around 59-60 GiB node usage.
-        # Start collecting detailed mappings once used memory reaches 50 GiB.
-        #
-        # `pmap` and /proc/<pid>/maps inspection are throttled to once per second
-        # so the monitor itself does not materially increase memory/CPU pressure.
-        # ----------------------------------------------------------------------
+#         # ----------------------------------------------------------------------
+#         # Heavy mapping snapshot near memory pressure only
+#         #
+#         # The previous OOMs occurred around 59-60 GiB node usage.
+#         # Start collecting detailed mappings once used memory reaches 50 GiB.
+#         #
+#         # `pmap` and /proc/<pid>/maps inspection are throttled to once per second
+#         # so the monitor itself does not materially increase memory/CPU pressure.
+#         # ----------------------------------------------------------------------
 
-        MEM_USED_GIB="$(
-            free -b \
-                | awk '/^Mem:/ {printf "%.0f", $3 / 1024 / 1024 / 1024}'
-        )"
+#         MEM_USED_GIB="$(
+#             free -b \
+#                 | awk '/^Mem:/ {printf "%.0f", $3 / 1024 / 1024 / 1024}'
+#         )"
 
-        NOW_SEC="$(date +%s)"
+#         NOW_SEC="$(date +%s)"
 
-        if [[ "${MEM_USED_GIB}" -ge 50 ]] && \
-           (( NOW_SEC - LAST_HIGH_SNAPSHOT >= 1 )); then
+#         if [[ "${MEM_USED_GIB}" -ge 50 ]] && \
+#            (( NOW_SEC - LAST_HIGH_SNAPSHOT >= 1 )); then
 
-            LAST_HIGH_SNAPSHOT="${NOW_SEC}"
+#             LAST_HIGH_SNAPSHOT="${NOW_SEC}"
 
-            echo
-            echo "[HIGH MEMORY MAPPING SNAPSHOT] used=${MEM_USED_GIB}GiB"
+#             echo
+#             echo "[HIGH MEMORY MAPPING SNAPSHOT] used=${MEM_USED_GIB}GiB"
 
-            for TARGET in "ray::WorkerDict" "VLLM::Worker"; do
+#             for TARGET in "ray::WorkerDict" "VLLM::Worker"; do
 
-                # Search the process command line rather than relying on `comm`,
-                # because Ray process titles can be truncated in `comm`.
-                PID="$(
-                    ps -eo pid=,args= \
-                        | awk -v target="${TARGET}" \
-                            'index($0, target) {print $1; exit}'
-                )"
+#                 # Search the process command line rather than relying on `comm`,
+#                 # because Ray process titles can be truncated in `comm`.
+#                 PID="$(
+#                     ps -eo pid=,args= \
+#                         | awk -v target="${TARGET}" \
+#                             'index($0, target) {print $1; exit}'
+#                 )"
 
-                if [[ -z "${PID}" ]]; then
-                    echo "${TARGET}: not found"
-                    continue
-                fi
+#                 if [[ -z "${PID}" ]]; then
+#                     echo "${TARGET}: not found"
+#                     continue
+#                 fi
 
-                if [[ ! -r "/proc/${PID}/status" ]]; then
-                    echo "${TARGET}: PID=${PID} disappeared"
-                    continue
-                fi
+#                 if [[ ! -r "/proc/${PID}/status" ]]; then
+#                     echo "${TARGET}: PID=${PID} disappeared"
+#                     continue
+#                 fi
 
-                echo
-                echo "============================================================"
-                echo "TARGET=${TARGET}"
-                echo "PID=${PID}"
+#                 echo
+#                 echo "============================================================"
+#                 echo "TARGET=${TARGET}"
+#                 echo "PID=${PID}"
 
-                echo
-                echo "[status]"
+#                 echo
+#                 echo "[status]"
 
-                grep -E \
-                    'VmPeak|VmSize|VmRSS|RssAnon|RssFile|RssShmem|VmSwap' \
-                    "/proc/${PID}/status" \
-                    || true
+#                 grep -E \
+#                     'VmPeak|VmSize|VmRSS|RssAnon|RssFile|RssShmem|VmSwap' \
+#                     "/proc/${PID}/status" \
+#                     || true
 
-                if [[ -r "/proc/${PID}/smaps_rollup" ]]; then
-                    echo
-                    echo "[smaps_rollup]"
+#                 if [[ -r "/proc/${PID}/smaps_rollup" ]]; then
+#                     echo
+#                     echo "[smaps_rollup]"
 
-                    grep -E \
-                        '^(Rss|Pss|Pss_Anon|Pss_File|Pss_Shmem|Anonymous|Swap):' \
-                        "/proc/${PID}/smaps_rollup" \
-                        || true
-                fi
+#                     grep -E \
+#                         '^(Rss|Pss|Pss_Anon|Pss_File|Pss_Shmem|Anonymous|Swap):' \
+#                         "/proc/${PID}/smaps_rollup" \
+#                         || true
+#                 fi
 
-                if [[ -r "/proc/${PID}/maps" ]]; then
-                    echo
-                    echo "[interesting mappings]"
+#                 if [[ -r "/proc/${PID}/maps" ]]; then
+#                     echo
+#                     echo "[interesting mappings]"
 
-                    grep -Ei \
-                        'shm|memfd|cuda|nvidia|ipc|deleted' \
-                        "/proc/${PID}/maps" \
-                        | tail -n 150 \
-                        || true
-                fi
+#                     grep -Ei \
+#                         'shm|memfd|cuda|nvidia|ipc|deleted' \
+#                         "/proc/${PID}/maps" \
+#                         | tail -n 150 \
+#                         || true
+#                 fi
 
-                echo
-                echo "[pmap largest mappings]"
+#                 echo
+#                 echo "[pmap largest mappings]"
 
-                pmap -x "${PID}" 2>/dev/null \
-                    | awk '
-                        NR > 2 && $3 ~ /^[0-9]+$/ {
-                            print
-                        }
-                    ' \
-                    | sort -k3 -nr \
-                    | head -n 40 \
-                    || true
-            done
-        fi
+#                 pmap -x "${PID}" 2>/dev/null \
+#                     | awk '
+#                         NR > 2 && $3 ~ /^[0-9]+$/ {
+#                             print
+#                         }
+#                     ' \
+#                     | sort -k3 -nr \
+#                     | head -n 40 \
+#                     || true
+#             done
+#         fi
 
-        echo
-        sleep 0.2
-    done
+#         echo
+#         sleep 0.2
+#     done
 
-) >> "${MEM_LOG}" 2>&1 &
+# ) >> "${MEM_LOG}" 2>&1 &
 
-MEM_MONITOR_PID=$!
+# MEM_MONITOR_PID=$!
 
 # ==============================================================================
 # Memory monitor cleanup
 # ==============================================================================
 
-cleanup() {
-    if kill -0 "${MEM_MONITOR_PID}" 2>/dev/null; then
-        echo "[INFO] Stopping memory monitor PID=${MEM_MONITOR_PID}"
-        kill "${MEM_MONITOR_PID}" 2>/dev/null || true
-        wait "${MEM_MONITOR_PID}" 2>/dev/null || true
-    fi
+# cleanup() {
+#     if kill -0 "${MEM_MONITOR_PID}" 2>/dev/null; then
+#         echo "[INFO] Stopping memory monitor PID=${MEM_MONITOR_PID}"
+#         kill "${MEM_MONITOR_PID}" 2>/dev/null || true
+#         wait "${MEM_MONITOR_PID}" 2>/dev/null || true
+#     fi
 
-    echo "[INFO] Memory log saved to: ${MEM_LOG}"
-}
+#     echo "[INFO] Memory log saved to: ${MEM_LOG}"
+# }
 
-trap cleanup EXIT INT TERM
+# trap cleanup EXIT INT TERM
 
-echo "[OK] memory monitor started."
-echo "PID                 : ${MEM_MONITOR_PID}"
-echo "log                 : ${MEM_LOG}"
-
+# echo "[OK] memory monitor started."
+# echo "PID                 : ${MEM_MONITOR_PID}"
+# echo "log                 : ${MEM_LOG}"
 
 # ==============================================================================
 # 9. GPU status before training
@@ -531,7 +530,7 @@ echo "  ${VERL_ROOT}/verl/trainer/config/ppo_trainer.yaml"
 echo
 echo "Expected trajectory:"
 echo "  prompt"
-echo "    -> planner rollout x4"
+echo "    -> planner rollout x16"
 echo "    -> PlanningRewardManager"
 echo "    -> FrozenCoderWorker RPC"
 echo "    -> TACO execution"
@@ -542,11 +541,17 @@ echo
 echo "Starting..."
 echo
 
+TRAIN_LOG="${PROJECT_ROOT}/phase4_method_discovery/vanilla_planning_rlvr/outputs/training_pilot50_$(date +%Y%m%d_%H%M%S).log"
+
+mkdir -p "$(dirname "${TRAIN_LOG}")"
+
+echo "[INFO] Training log: ${TRAIN_LOG}"
+
 "${PYTHON_BIN}" -m verl.trainer.main_ppo_sync \
     --config-path "${SMOKE_CONFIG_DIR}" \
     --config-name "${SMOKE_CONFIG_NAME}" \
-    "hydra.searchpath=[file://${VERL_ROOT}/verl/trainer/config]"
-    # --cfg job             # 최종 합성 YAML을 확인하기 위해 출력
+    "hydra.searchpath=[file://${VERL_ROOT}/verl/trainer/config]" \
+    2>&1 | tee "${TRAIN_LOG}"
 
 # ==============================================================================
 # 11. Success
@@ -564,4 +569,6 @@ echo "  - reward-loop initialization"
 echo "  - planner rollout"
 echo "  - execution rewards"
 echo "  - GRPO advantage / actor update"
-echo "  - global step 1 completion"
+echo "  - global step 50 completion"
+echo "  - checkpoint at step 25"
+echo "  - checkpoint at step 50"

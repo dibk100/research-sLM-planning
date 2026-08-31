@@ -93,7 +93,7 @@ actor_rollout_ref:
     prompt_length: 2048
     response_length: 512
 
-    gpu_memory_utilization: 0.25
+    gpu_memory_utilization: 0.22
     max_model_len: 3072
 
     enforce_eager: true
@@ -172,10 +172,10 @@ trainer:
   val_before_train: false
   val_only: false
 
-  # Pilot에서는 너무 자주 validation 하지 않음. 10 -> -1
+  # Pilot에서는 validation 비활성화
   test_freq: -1
 
-  save_freq: -1   # 25 -> -1
+  save_freq: 25   
 
   resume_mode: disable
   critic_warmup: 0
