@@ -57,11 +57,11 @@ def evaluate_tpr_non_fail_fast(
     on one test cannot prevent subsequent tests from being evaluated.
 
     NOTE:
-        This implementation prioritizes correctness and exact correspondence
-        with the validated diagnostic protocol.
+        This is the validated reference implementation for TPR semantics.
 
-        It may later be replaced by a more efficient native non-fail-fast
-        execution backend, provided that reward semantics remain identical.
+        The actual training reward path uses TACOEvaluator's optimized
+        native non-fail-fast backend. Keep this implementation as a
+        correctness oracle for equivalence/regression testing.
 
     Returns
     -------
@@ -408,41 +408,95 @@ def compute_tpr_reward(
     generated_code = parse_result.code
 
     # -------------------------------------------------------------------------
-    # 6. Execute ALL selected reward tests.
+    # 6. Execute ALL selected reward tests with the optimized native
+    #    non-fail-fast backend.
     #
-    # Unlike vanilla binary evaluation, this path must not fail fast.
+    # The reference implementation above evaluates each reward test in an
+    # independent evaluator subprocess. The optimized backend preserves the
+    # validated TPR reward semantics while evaluating the complete selected
+    # test suite in one spawned evaluator process.
     # -------------------------------------------------------------------------
 
-    evaluation = evaluate_tpr_non_fail_fast(
-        problem=reward_problem,
-        code=generated_code,
+    evaluator = TACOEvaluator(
         timeout_seconds=timeout_seconds,
+        debug=False,
     )
 
+    try:
+        evaluation = (
+            evaluator.evaluate_non_fail_fast(
+                problem=reward_problem,
+                code=generated_code,
+            )
+        )
+
+    except Exception as exc:
+        return {
+            "score": 0.0,
+            "reward": 0.0,
+            "test_pass_ratio": 0.0,
+            "passed_tests": 0,
+            "reward_tests": int(
+                reward_tests
+            ),
+            "all_tests_passed": False,
+            "binary_reward": 0.0,
+            "status": "EVALUATION_ERROR",
+            "error_message": (
+                f"{type(exc).__name__}: {exc}"
+            ),
+            "coder_prompt_tokens": int(
+                coder_prompt_tokens
+            ),
+            "coder_completion_tokens": int(
+                coder_completion_tokens
+            ),
+            "coder_generation_time": float(
+                coder_generation_time
+            ),
+            "code_extraction_method": str(
+                parse_result.extraction_method
+            ),
+            "per_test_results": [],
+        }
+
     passed_tests = int(
-        evaluation[
-            "passed_tests"
-        ]
+        evaluation.passed_tests
     )
 
     total_tests = int(
-        evaluation[
-            "total_tests"
-        ]
+        evaluation.total_tests
     )
 
-    test_pass_ratio = float(
-        evaluation[
-            "test_pass_ratio"
-        ]
+    # The optimized backend must preserve the complete selected-test
+    # denominator. Missing evaluator results must never silently reduce N.
+    if total_tests != reward_tests:
+        raise RuntimeError(
+            "Optimized TPR evaluator returned an unexpected "
+            "test count: "
+            f"expected={reward_tests}, "
+            f"actual={total_tests}"
+        )
+
+    if not (
+        0 <= passed_tests <= total_tests
+    ):
+        raise RuntimeError(
+            "Invalid optimized TPR test counts: "
+            f"passed_tests={passed_tests}, "
+            f"total_tests={total_tests}"
+        )
+
+    test_pass_ratio = (
+        passed_tests / total_tests
+        if total_tests > 0
+        else 0.0
     )
 
-    all_tests_passed = bool(
-        evaluation[
-            "all_tests_passed"
-        ]
+    all_tests_passed = (
+        total_tests > 0
+        and passed_tests == total_tests
     )
-
     # -------------------------------------------------------------------------
     # 7. Dense TPR reward.
     # -------------------------------------------------------------------------
@@ -467,21 +521,21 @@ def compute_tpr_reward(
         )
     )
     
-    # -------------------------------------------------------------------------
-    # 8. Debug logging for TPR reward propagation.
-    #
-    # Temporary instrumentation for the integration smoke test.
-    # This makes fractional rewards directly observable in the Ray worker log.
-    # -------------------------------------------------------------------------
+    # # -------------------------------------------------------------------------
+    # # 8. Debug logging for TPR reward propagation.
+    # #
+    # # Temporary instrumentation for the integration smoke test.
+    # # This makes fractional rewards directly observable in the Ray worker log.
+    # # -------------------------------------------------------------------------
 
-    print(
-        "[TPR Reward] "
-        f"passed={passed_tests}/{total_tests} "
-        f"score={reward:.6f} "
-        f"binary={1 if all_tests_passed else 0} "
-        f"status={status}",
-        flush=True,
-    )
+    # print(
+    #     "[TPR Reward] "
+    #     f"passed={passed_tests}/{total_tests} "
+    #     f"score={reward:.6f} "
+    #     f"binary={1 if all_tests_passed else 0} "
+    #     f"status={status}",
+    #     flush=True,
+    # )
 
     # -------------------------------------------------------------------------
     # 9. Return reward-manager-compatible result.
@@ -543,11 +597,27 @@ def compute_tpr_reward(
             parse_result.extraction_method
         ),
 
-        "per_test_results": (
-            evaluation[
-                "per_test_results"
-            ]
-        ),
+        "per_test_results": [
+            {
+                "test_index": int(
+                    result.test_index
+                ),
+                "passed": bool(
+                    result.passed
+                ),
+                "status": str(
+                    result.status
+                ),
+                "execution_time": float(
+                    result.execution_time
+                ),
+                "error_message": str(
+                    result.stderr
+                    or ""
+                ),
+            }
+            for result in evaluation.test_results
+        ],
     }
 
 

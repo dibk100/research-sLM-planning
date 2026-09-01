@@ -653,11 +653,11 @@ class PlanningTPRRewardManager(
             "tpr",
             score,
         )
-        print(
-            "[TPR RewardManager] "
-            f"reward_score={score:.6f}",
-            flush=True,
-        )
+        # print(
+        #     "[TPR RewardManager] "
+        #     f"reward_score={score:.6f}",
+        #     flush=True,
+        # )
 
         return {
             "reward_score": score,
