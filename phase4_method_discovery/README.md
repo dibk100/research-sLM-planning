@@ -151,3 +151,27 @@ src/execution/
 }
 
 ```
+
+```
+phase4_method_discovery/
+│
+├── vanilla_planning_rlvr/
+│   ├── configs/
+│   ├── reward/
+│   │   ├── planning_execution_reward.py
+│   │   └── planning_reward_manager.py
+│   ├── workers/
+│   │   └── frozen_coder_worker.py      # 공용으로 재사용
+│   ├── scripts/
+│   ├── evaluation/
+│   └── analysis/
+│
+└── tpr_planning_rlvr/
+    ├── configs/
+    ├── reward/
+        ├── planning_tpr_reward.py
+        └── planning_tpr_reward_manager.py
+    ├── scripts/
+    ├── evaluation/
+    └── analysis/
+```
