@@ -383,7 +383,345 @@ def grade_stdio(
 
     return all_results, {"execution time": total_execution_time}
 
+def grade_stdio_non_fail_fast(
+    code: str,
+    all_inputs: list,
+    all_outputs: list,
+    timeout: int,
+):
+    """
+    Evaluate all stdin tests without stopping at the first failure.
 
+    TPR-specific execution path.
+
+    Returns one result for every available test:
+        True : passed
+        -2   : wrong answer
+        -3   : timeout
+        -4   : runtime error
+    """
+
+    code = clean_if_name(code)
+    code = make_function(code)
+
+    try:
+        compiled_sol = compile_code(
+            code,
+            timeout,
+        )
+    except Exception as exc:
+        # Compilation/setup failure means the same generated program
+        # cannot execute any reward test.
+        num_tests = min(
+            len(all_inputs),
+            len(all_outputs),
+        )
+
+        return (
+            [-4] * num_tests,
+            {
+                "error": repr(exc),
+                "error_code": -4,
+                "error_message": (
+                    "Compilation/setup error: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+                "per_test_metadata": [
+                    {
+                        "error": repr(exc),
+                        "error_code": -4,
+                        "error_message": (
+                            "Compilation/setup error"
+                        ),
+                    }
+                    for _ in range(num_tests)
+                ],
+            },
+        )
+
+    if compiled_sol is None:
+        num_tests = min(
+            len(all_inputs),
+            len(all_outputs),
+        )
+
+        return (
+            [-4] * num_tests,
+            {
+                "error_code": -4,
+                "error_message": "Compilation returned None.",
+                "per_test_metadata": [
+                    {
+                        "error_code": -4,
+                        "error_message": (
+                            "Compilation returned None."
+                        ),
+                    }
+                    for _ in range(num_tests)
+                ],
+            },
+        )
+
+    method = get_function(
+        compiled_sol,
+        "wrapped_function",
+    )
+
+    if method is None:
+        num_tests = min(
+            len(all_inputs),
+            len(all_outputs),
+        )
+
+        return (
+            [-4] * num_tests,
+            {
+                "error_code": -4,
+                "error_message": (
+                    "wrapped_function not found."
+                ),
+                "per_test_metadata": [
+                    {
+                        "error_code": -4,
+                        "error_message": (
+                            "wrapped_function not found."
+                        ),
+                    }
+                    for _ in range(num_tests)
+                ],
+            },
+        )
+
+    all_results = []
+    per_test_metadata = []
+    total_execution_time = 0.0
+
+    for idx, (gt_inp, gt_out) in enumerate(
+        zip(
+            all_inputs,
+            all_outputs,
+            strict=False,
+        )
+    ):
+        signal.alarm(timeout)
+        faulthandler.enable()
+
+        prediction = None
+
+        try:
+            with Capturing() as captured_output:
+                start = time.time()
+
+                call_method(
+                    method,
+                    gt_inp,
+                )
+
+                total_execution_time += (
+                    time.time() - start
+                )
+
+            signal.alarm(0)
+
+            prediction = captured_output[0]
+
+        except Exception as exc:
+            signal.alarm(0)
+
+            if (
+                "timeoutexception"
+                in repr(exc).lower()
+            ):
+                all_results.append(-3)
+
+                per_test_metadata.append(
+                    {
+                        "test_index": idx,
+                        "error": repr(exc),
+                        "error_code": -3,
+                        "error_message": (
+                            "Time Limit Exceeded"
+                        ),
+                        "inputs": truncatefn(
+                            gt_inp
+                        ),
+                        "expected": truncatefn(
+                            gt_out
+                        ),
+                    }
+                )
+
+            else:
+                all_results.append(-4)
+
+                per_test_metadata.append(
+                    {
+                        "test_index": idx,
+                        "error": repr(exc),
+                        "error_code": -4,
+                        "error_message": (
+                            "Runtime Error"
+                        ),
+                        "inputs": truncatefn(
+                            gt_inp
+                        ),
+                        "expected": truncatefn(
+                            gt_out
+                        ),
+                    }
+                )
+
+            continue
+
+        finally:
+            signal.alarm(0)
+            faulthandler.disable()
+
+        stripped_prediction_lines = (
+            get_stripped_lines(
+                prediction
+            )
+        )
+
+        stripped_gt_out_lines = (
+            get_stripped_lines(
+                gt_out
+            )
+        )
+
+        wa_metadata = {
+            "test_index": idx,
+            "output": truncatefn(
+                prediction
+            ),
+            "inputs": truncatefn(
+                gt_inp
+            ),
+            "expected": truncatefn(
+                gt_out
+            ),
+            "error_code": -2,
+        }
+
+        # --------------------------------------------------------------
+        # Output-line count mismatch.
+        # --------------------------------------------------------------
+
+        if (
+            len(stripped_prediction_lines)
+            != len(stripped_gt_out_lines)
+        ):
+            all_results.append(-2)
+
+            wa_metadata[
+                "error_message"
+            ] = (
+                "Wrong answer: "
+                "mismatched output length"
+            )
+
+            per_test_metadata.append(
+                wa_metadata
+            )
+
+            continue
+
+        # --------------------------------------------------------------
+        # Compare output lines.
+        # --------------------------------------------------------------
+
+        test_passed = True
+
+        for output_line_idx, (
+            stripped_prediction_line,
+            stripped_gt_out_line,
+        ) in enumerate(
+            zip(
+                stripped_prediction_lines,
+                stripped_gt_out_lines,
+                strict=False,
+            )
+        ):
+            if (
+                stripped_prediction_line
+                == stripped_gt_out_line
+            ):
+                continue
+
+            (
+                success_prediction,
+                decimal_prediction_line,
+            ) = convert_line_to_decimals(
+                stripped_prediction_line
+            )
+
+            if not success_prediction:
+                test_passed = False
+                break
+
+            (
+                success_gt,
+                decimal_gtout_line,
+            ) = convert_line_to_decimals(
+                stripped_gt_out_line
+            )
+
+            if not success_gt:
+                test_passed = False
+                break
+
+            if (
+                decimal_prediction_line
+                == decimal_gtout_line
+            ):
+                continue
+
+            test_passed = False
+            break
+
+        if test_passed:
+            all_results.append(True)
+
+            per_test_metadata.append(
+                {
+                    "test_index": idx,
+                    "output": truncatefn(
+                        prediction
+                    ),
+                    "inputs": truncatefn(
+                        gt_inp
+                    ),
+                    "expected": truncatefn(
+                        gt_out
+                    ),
+                    "error_code": None,
+                    "error_message": None,
+                }
+            )
+
+        else:
+            all_results.append(-2)
+
+            wa_metadata[
+                "error_message"
+            ] = "Wrong Answer"
+
+            per_test_metadata.append(
+                wa_metadata
+            )
+
+    return (
+        all_results,
+        {
+            "execution time": (
+                total_execution_time
+            ),
+            "per_test_metadata": (
+                per_test_metadata
+            ),
+        },
+    )
+    
 def run_test(sample, test=None, debug=False, timeout=6):
     """
     
@@ -557,3 +895,98 @@ def reliability_guard(maximum_memory_bytes=None):
     sys.modules["resource"] = None
     sys.modules["psutil"] = None
     sys.modules["tkinter"] = None
+
+def run_test_non_fail_fast(
+    sample,
+    test=None,
+    debug=False,
+    timeout=6,
+):
+    """
+    TPR-specific non-fail-fast evaluator.
+
+    Currently supports standard-input evaluation only.
+    """
+
+    signal.signal(
+        signal.SIGALRM,
+        timeout_handler,
+    )
+
+    MAXIMUM_MEMORY_BYTES = (
+        4 * 1024**3
+    )
+
+    reliability_guard(
+        maximum_memory_bytes=(
+            MAXIMUM_MEMORY_BYTES
+        )
+    )
+
+    if debug:
+        print(
+            f"start = "
+            f"{datetime.now().time()}"
+        )
+
+    in_outs = json.loads(
+        sample["input_output"]
+    )
+
+    if (
+        in_outs.get("fn_name")
+        is not None
+    ):
+        raise NotImplementedError(
+            "TPR non-fail-fast backend "
+            "currently supports stdin only."
+        )
+
+    if test is None:
+        raise AssertionError(
+            "test code is none"
+        )
+
+    try:
+        return grade_stdio_non_fail_fast(
+            code=test,
+            all_inputs=in_outs[
+                "inputs"
+            ],
+            all_outputs=in_outs[
+                "outputs"
+            ],
+            timeout=timeout,
+        )
+
+    except Exception as exc:
+        import traceback
+
+        if debug:
+            traceback.print_exc()
+
+        num_tests = min(
+            len(
+                in_outs["inputs"]
+            ),
+            len(
+                in_outs["outputs"]
+            ),
+        )
+
+        return (
+            [-4] * num_tests,
+            {
+                "error": repr(exc),
+                "error_code": -4,
+                "error_message": (
+                    "Error during "
+                    "non-fail-fast testing: "
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                ),
+            },
+        )
+
+    finally:
+        signal.alarm(0)

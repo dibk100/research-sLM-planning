@@ -1,0 +1,201 @@
+{
+  "base_to_step25": {
+    "n": 300,
+    "transitions": {
+      "both_fail": 245,
+      "both_pass": 48,
+      "recovered": 6,
+      "regressed": 1
+    },
+    "net_solved_gain": 5,
+    "plan_similarity": {
+      "mean_all": 0.8820216914050792,
+      "median_all": 0.9404671595532091,
+      "mean_recovered": 0.7170633286001237,
+      "mean_regressed": 0.7669902912621359,
+      "mean_reward_changed": 0.724195751837554,
+      "mean_reward_unchanged": 0.8857922769920168
+    },
+    "code_similarity": {
+      "mean_all": 0.7820159472853825,
+      "mean_recovered": 0.731184364740428,
+      "mean_regressed": 0.8149498632634458
+    },
+    "attribution_flags": {
+      "near_identical_plan_threshold": 0.9,
+      "reward_changed_count": 7,
+      "reward_changed_with_near_identical_plan": 1,
+      "reward_changed_with_near_identical_plan_fraction": 0.14285714285714285,
+      "large_plan_change_threshold": 0.5,
+      "reward_unchanged_count": 293,
+      "reward_unchanged_despite_large_plan_change": 5,
+      "reward_unchanged_despite_large_plan_change_fraction": 0.017064846416382253
+    },
+    "correlations": {
+      "plan_change_vs_abs_tpr_change": 0.3234081434593237,
+      "plan_change_vs_code_change": 0.6000537401750508
+    },
+    "problem_ids": {
+      "recovered": [
+        "abc348_b",
+        "abc355_a",
+        "abc375_a",
+        "abc382_b",
+        "abc391_b",
+        "abc399_f"
+      ],
+      "regressed": [
+        "abc365_c"
+      ],
+      "reward_changed_with_near_identical_plan": [
+        "abc348_b"
+      ],
+      "reward_unchanged_despite_large_plan_change": [
+        "abc357_d",
+        "abc386_c",
+        "abc388_e",
+        "abc389_d",
+        "arc189_b"
+      ]
+    },
+    "interpretation": [
+      "Some reward transitions occur despite highly similar plans. Execution reward is therefore not a pure measure of planning quality.",
+      "Plan changes and code changes are strongly associated.",
+      "This diagnostic cannot by itself distinguish reward sparsity, entropy collapse, or token-level credit assignment. Those require within-problem sampled groups and/or token logits."
+    ]
+  },
+  "base_to_step50": {
+    "n": 300,
+    "transitions": {
+      "both_fail": 245,
+      "both_pass": 45,
+      "recovered": 6,
+      "regressed": 4
+    },
+    "net_solved_gain": 2,
+    "plan_similarity": {
+      "mean_all": 0.8870149715637685,
+      "median_all": 0.9449714374972107,
+      "mean_recovered": 0.8416122621469261,
+      "mean_regressed": 0.6907136968227875,
+      "mean_reward_changed": 0.7812528360172706,
+      "mean_reward_unchanged": 0.890661941755027
+    },
+    "code_similarity": {
+      "mean_all": 0.8062600229598905,
+      "mean_recovered": 0.6984743212136362,
+      "mean_regressed": 0.7450626890723232
+    },
+    "attribution_flags": {
+      "near_identical_plan_threshold": 0.9,
+      "reward_changed_count": 10,
+      "reward_changed_with_near_identical_plan": 2,
+      "reward_changed_with_near_identical_plan_fraction": 0.2,
+      "large_plan_change_threshold": 0.5,
+      "reward_unchanged_count": 290,
+      "reward_unchanged_despite_large_plan_change": 4,
+      "reward_unchanged_despite_large_plan_change_fraction": 0.013793103448275862
+    },
+    "correlations": {
+      "plan_change_vs_abs_tpr_change": 0.2585857773792123,
+      "plan_change_vs_code_change": 0.5622668050760451
+    },
+    "problem_ids": {
+      "recovered": [
+        "abc348_b",
+        "abc375_a",
+        "abc382_b",
+        "abc384_c",
+        "abc391_b",
+        "abc396_d"
+      ],
+      "regressed": [
+        "abc364_b",
+        "abc365_c",
+        "abc378_e",
+        "abc384_f"
+      ],
+      "reward_changed_with_near_identical_plan": [
+        "abc348_b",
+        "abc396_d"
+      ],
+      "reward_unchanged_despite_large_plan_change": [
+        "abc357_d",
+        "abc370_c",
+        "abc376_a",
+        "abc378_g"
+      ]
+    },
+    "interpretation": [
+      "Some reward transitions occur despite highly similar plans. Execution reward is therefore not a pure measure of planning quality.",
+      "Plan changes and code changes are strongly associated.",
+      "This diagnostic cannot by itself distinguish reward sparsity, entropy collapse, or token-level credit assignment. Those require within-problem sampled groups and/or token logits."
+    ]
+  },
+  "step25_to_step50": {
+    "n": 300,
+    "transitions": {
+      "both_fail": 244,
+      "both_pass": 49,
+      "regressed": 5,
+      "recovered": 2
+    },
+    "net_solved_gain": -3,
+    "plan_similarity": {
+      "mean_all": 0.8784022038673447,
+      "median_all": 0.9483065145728817,
+      "mean_recovered": 0.8258648345265718,
+      "mean_regressed": 0.7304816016643978,
+      "mean_reward_changed": 0.7577339539107333,
+      "mean_reward_unchanged": 0.8812850630813251
+    },
+    "code_similarity": {
+      "mean_all": 0.8018489113465666,
+      "mean_recovered": 0.3491226282825637,
+      "mean_regressed": 0.7024126058173044
+    },
+    "attribution_flags": {
+      "near_identical_plan_threshold": 0.9,
+      "reward_changed_count": 7,
+      "reward_changed_with_near_identical_plan": 2,
+      "reward_changed_with_near_identical_plan_fraction": 0.2857142857142857,
+      "large_plan_change_threshold": 0.5,
+      "reward_unchanged_count": 293,
+      "reward_unchanged_despite_large_plan_change": 5,
+      "reward_unchanged_despite_large_plan_change_fraction": 0.017064846416382253
+    },
+    "correlations": {
+      "plan_change_vs_abs_tpr_change": 0.3055182035725056,
+      "plan_change_vs_code_change": 0.6711187384327892
+    },
+    "problem_ids": {
+      "recovered": [
+        "abc384_c",
+        "abc396_d"
+      ],
+      "regressed": [
+        "abc355_a",
+        "abc364_b",
+        "abc378_e",
+        "abc384_f",
+        "abc399_f"
+      ],
+      "reward_changed_with_near_identical_plan": [
+        "abc396_d",
+        "abc399_f"
+      ],
+      "reward_unchanged_despite_large_plan_change": [
+        "abc370_c",
+        "abc376_a",
+        "abc378_g",
+        "abc386_c",
+        "abc389_d"
+      ]
+    },
+    "interpretation": [
+      "Some reward transitions occur despite highly similar plans. Execution reward is therefore not a pure measure of planning quality.",
+      "Plan changes and code changes are strongly associated.",
+      "This diagnostic cannot by itself distinguish reward sparsity, entropy collapse, or token-level credit assignment. Those require within-problem sampled groups and/or token logits."
+    ]
+  }
+}

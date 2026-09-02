@@ -5,13 +5,15 @@ import json
 import multiprocessing
 from typing import Any
 
-from src.execution.deepcoder.livecodebench import (
-    run_test as deepcoder_lcb_run_test,
-)
 from src.schemas import (
     EvaluationResult,
     ProblemExample,
     TestCaseResult,
+)
+
+from src.execution.deepcoder.livecodebench import (
+    run_test as deepcoder_lcb_run_test,
+    run_test_non_fail_fast as deepcoder_lcb_run_test_non_fail_fast,
 )
 
 
@@ -165,7 +167,91 @@ class TACOEvaluator:
             is_correct=bool(is_correct),
             details=details,
         )
+    
+    
+    def evaluate_non_fail_fast(
+        self,
+        problem: ProblemExample,
+        code: str,
+    ) -> EvaluationResult:
+        """
+        Evaluate all selected TACO stdin tests without fail-fast.
 
+        TPR-specific execution path.
+
+        Unlike evaluate(), this method attempts to execute every
+        available private test so that passed_tests / total_tests
+        can be used as a dense test-pass-ratio reward.
+
+        The underlying DeepCoder runner is executed in one isolated
+        spawned subprocess.
+        """
+
+        self._validate_problem(problem)
+
+        if not isinstance(code, str):
+            raise TypeError(
+                "code must be str, "
+                f"got {type(code).__name__}"
+            )
+
+        if not code.strip():
+            return EvaluationResult(
+                passed=False,
+                status="EMPTY_CODE",
+                passed_tests=0,
+                total_tests=0,
+                execution_time=0.0,
+                test_results=[],
+                error_message="Code is empty.",
+            )
+
+        if not problem.private_tests:
+            return EvaluationResult(
+                passed=False,
+                status="NO_TESTS",
+                passed_tests=0,
+                total_tests=0,
+                execution_time=0.0,
+                test_results=[],
+                error_message="No TACO tests available.",
+            )
+
+        taco_tests = self._build_taco_tests(
+            problem
+        )
+
+        lcb_tests = self.taco_to_lcb_format(
+            taco_tests
+        )
+
+        try:
+            is_correct, details = (
+                self.lcb_check_correctness_non_fail_fast(
+                    sample=lcb_tests,
+                    generation=code,
+                    timeout=self.timeout_seconds,
+                    debug=self.debug,
+                )
+            )
+
+        except Exception as exc:
+            return EvaluationResult(
+                passed=False,
+                status="EVALUATION_ERROR",
+                passed_tests=0,
+                total_tests=0,
+                execution_time=0.0,
+                test_results=[],
+                error_message=(
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            )
+
+        return self._convert_result(
+            is_correct=bool(is_correct),
+            details=details,
+        )
     # ==================================================================
     # Local ProblemExample -> TACO format
     # ==================================================================
@@ -447,6 +533,66 @@ class TACOEvaluator:
                         "error_message": str(exc),
                     }
                 )
+            except Exception:
+                pass
+
+        finally:
+            try:
+                child_conn.close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _temp_run_non_fail_fast(
+        sample: dict[str, str],
+        generation: str,
+        debug: bool,
+        child_conn: Any,
+        timeout: int,
+    ) -> None:
+        """
+        Run the TPR-specific non-fail-fast DeepCoder evaluator
+        inside one isolated spawned subprocess.
+        """
+
+        try:
+            res, metadata = (
+                deepcoder_lcb_run_test_non_fail_fast(
+                    sample,
+                    test=generation,
+                    debug=debug,
+                    timeout=timeout,
+                )
+            )
+
+            child_conn.send(
+                {
+                    "ok": True,
+                    "result": res,
+                    "metadata": metadata,
+                }
+            )
+
+        except Exception as exc:
+            if debug:
+                print(
+                    "[TACOEvaluator] "
+                    "deepcoder_lcb_run_test_non_fail_fast "
+                    "raised exception: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+
+            try:
+                child_conn.send(
+                    {
+                        "ok": False,
+                        "error_type": (
+                            type(exc).__name__
+                        ),
+                        "error_message": str(exc),
+                    }
+                )
+
             except Exception:
                 pass
 
@@ -818,6 +964,485 @@ class TACOEvaluator:
         detailed_results[
             "passed_tests"
         ] = passed_tests
+
+        detailed_results[
+            "all_passed"
+        ] = all_passed
+
+        detailed_results[
+            "metadata"
+        ] = metadata
+
+        return (
+            all_passed,
+            detailed_results,
+        )
+           
+    @classmethod
+    def lcb_check_correctness_non_fail_fast(
+        cls,
+        *,
+        sample: list[dict[str, Any]],
+        generation: str,
+        timeout: int = 6,
+        debug: bool = False,
+    ) -> tuple[bool, dict[str, Any]]:
+        """
+        TPR-specific non-fail-fast correctness evaluation.
+
+        All available stdin tests are passed to one spawned evaluator
+        process. The child runner attempts every test and returns one
+        result per test.
+
+        Expected result codes:
+            True : pass
+            -2   : wrong answer
+            -3   : timeout
+            -4   : runtime / setup error
+        """
+
+        if not sample:
+            raise ValueError(
+                "Sample must contain at least one test case."
+            )
+
+        processed_sample = (
+            cls.postprocess_lcb_sample(
+                sample
+            )
+        )
+
+        ctx = multiprocessing.get_context(
+            "spawn"
+        )
+
+        parent_conn, child_conn = (
+            ctx.Pipe(
+                duplex=False
+            )
+        )
+
+        process = ctx.Process(
+            target=cls._temp_run_non_fail_fast,
+            args=(
+                processed_sample,
+                generation,
+                debug,
+                child_conn,
+                timeout,
+            ),
+        )
+
+        process.start()
+
+        child_conn.close()
+
+        in_outs = json.loads(
+            processed_sample[
+                "input_output"
+            ]
+        )
+
+        inputs = in_outs["inputs"]
+        outputs = in_outs["outputs"]
+
+        num_available_tests = len(
+            inputs
+        )
+
+        if len(outputs) != num_available_tests:
+            process.kill()
+            process.join()
+
+            try:
+                parent_conn.close()
+            except Exception:
+                pass
+
+            raise RuntimeError(
+                "Input/output test count mismatch: "
+                f"inputs={num_available_tests}, "
+                f"outputs={len(outputs)}"
+            )
+
+        # Each test receives its own timeout in the child runner.
+        # This parent timeout only guards against a stuck evaluator
+        # process and follows the existing rLLM-style formula.
+        global_timeout = (
+            (timeout + 1)
+            * num_available_tests
+            + 5
+        )
+
+        process.join(
+            timeout=global_timeout
+        )
+
+        detailed_results: dict[str, Any] = {
+            "all_passed": False,
+            "test_results": [],
+            "total_tests": num_available_tests,
+            "passed_tests": 0,
+            "available_tests": (
+                num_available_tests
+            ),
+        }
+
+        # --------------------------------------------------------------
+        # Global evaluator timeout.
+        # --------------------------------------------------------------
+
+        if process.is_alive():
+            process.kill()
+            process.join()
+
+            try:
+                parent_conn.close()
+            except Exception:
+                pass
+
+            detailed_results[
+                "test_results"
+            ] = [
+                {
+                    "input": inp,
+                    "expected": out,
+                    "passed": False,
+                    "error": "global timeout",
+                    "error_message": (
+                        "Global timeout"
+                    ),
+                    "output": None,
+                    "raw_result": -3,
+                }
+                for inp, out in zip(
+                    inputs,
+                    outputs,
+                    strict=False,
+                )
+            ]
+
+            detailed_results[
+                "error"
+            ] = "global timeout"
+
+            detailed_results[
+                "error_message"
+            ] = "Global timeout"
+
+            return (
+                False,
+                detailed_results,
+            )
+
+        # --------------------------------------------------------------
+        # Receive child result.
+        # --------------------------------------------------------------
+
+        payload: dict[str, Any] | None = None
+
+        try:
+            if parent_conn.poll():
+                payload = (
+                    parent_conn.recv()
+                )
+
+        except (
+            EOFError,
+            OSError,
+        ):
+            payload = None
+
+        finally:
+            try:
+                parent_conn.close()
+            except Exception:
+                pass
+
+        # --------------------------------------------------------------
+        # Child returned nothing.
+        #
+        # We cannot infer per-test outcomes, so mark every available
+        # test as failed.
+        # --------------------------------------------------------------
+
+        if not payload:
+            detailed_results[
+                "test_results"
+            ] = [
+                {
+                    "input": inp,
+                    "expected": out,
+                    "passed": False,
+                    "error": (
+                        "no evaluator result"
+                    ),
+                    "error_message": (
+                        "No result returned from "
+                        "DeepCoder LCB runner."
+                    ),
+                    "output": None,
+                    "raw_result": -4,
+                }
+                for inp, out in zip(
+                    inputs,
+                    outputs,
+                    strict=False,
+                )
+            ]
+
+            detailed_results[
+                "error"
+            ] = (
+                "No result returned from "
+                "DeepCoder LCB runner."
+            )
+
+            return (
+                False,
+                detailed_results,
+            )
+
+        # --------------------------------------------------------------
+        # Child evaluator raised.
+        # --------------------------------------------------------------
+
+        if not bool(
+            payload.get(
+                "ok",
+                False,
+            )
+        ):
+            error_type = str(
+                payload.get(
+                    "error_type",
+                    "EvaluationError",
+                )
+            )
+
+            error_message = str(
+                payload.get(
+                    "error_message",
+                    "",
+                )
+            )
+
+            detailed_results[
+                "test_results"
+            ] = [
+                {
+                    "input": inp,
+                    "expected": out,
+                    "passed": False,
+                    "error": (
+                        f"{error_type}: "
+                        f"{error_message}"
+                    ),
+                    "error_message": (
+                        error_message
+                    ),
+                    "output": None,
+                    "raw_result": -4,
+                }
+                for inp, out in zip(
+                    inputs,
+                    outputs,
+                    strict=False,
+                )
+            ]
+
+            detailed_results[
+                "error"
+            ] = (
+                f"{error_type}: "
+                f"{error_message}"
+            )
+
+            detailed_results[
+                "error_message"
+            ] = error_message
+
+            return (
+                False,
+                detailed_results,
+            )
+
+        # --------------------------------------------------------------
+        # Normal child result.
+        # --------------------------------------------------------------
+
+        raw_result_payload = (
+            payload.get(
+                "result",
+                [],
+            )
+        )
+
+        try:
+            raw_results = list(
+                raw_result_payload
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            raw_results = []
+
+        raw_metadata = (
+            payload.get(
+                "metadata",
+                {},
+            )
+        )
+
+        try:
+            metadata = dict(
+                raw_metadata
+            )
+
+        except Exception:
+            metadata = {}
+
+        raw_per_test_metadata = (
+            metadata.get(
+                "per_test_metadata",
+                [],
+            )
+        )
+
+        if isinstance(
+            raw_per_test_metadata,
+            list,
+        ):
+            per_test_metadata = (
+                raw_per_test_metadata
+            )
+        else:
+            per_test_metadata = []
+
+        # --------------------------------------------------------------
+        # Defensive normalization.
+        #
+        # Successful non-fail-fast execution should return exactly one
+        # result per available test. If fewer results arrive, missing
+        # outcomes cannot count as passes.
+        # --------------------------------------------------------------
+
+        if (
+            len(raw_results)
+            < num_available_tests
+        ):
+            raw_results.extend(
+                [-4]
+                * (
+                    num_available_tests
+                    - len(raw_results)
+                )
+            )
+
+        elif (
+            len(raw_results)
+            > num_available_tests
+        ):
+            raw_results = (
+                raw_results[
+                    :num_available_tests
+                ]
+            )
+
+        # --------------------------------------------------------------
+        # Build per-test detailed results.
+        # --------------------------------------------------------------
+
+        test_results: list[
+            dict[str, Any]
+        ] = []
+
+        for test_index, (
+            inp,
+            out,
+            raw_result,
+        ) in enumerate(
+            zip(
+                inputs,
+                outputs,
+                raw_results,
+                strict=False,
+            )
+        ):
+            if (
+                test_index
+                < len(per_test_metadata)
+                and isinstance(
+                    per_test_metadata[
+                        test_index
+                    ],
+                    dict,
+                )
+            ):
+                test_metadata = dict(
+                    per_test_metadata[
+                        test_index
+                    ]
+                )
+
+            else:
+                test_metadata = {}
+
+            passed = (
+                raw_result is True
+            )
+
+            test_results.append(
+                {
+                    "input": inp,
+                    "expected": out,
+                    "passed": passed,
+                    "error": (
+                        test_metadata.get(
+                            "error"
+                        )
+                    ),
+                    "error_message": (
+                        test_metadata.get(
+                            "error_message"
+                        )
+                    ),
+                    "output": (
+                        test_metadata.get(
+                            "output"
+                        )
+                    ),
+                    "raw_result": (
+                        raw_result
+                    ),
+                }
+            )
+
+        passed_tests = sum(
+            1
+            for raw_result in raw_results
+            if raw_result is True
+        )
+
+        all_passed = (
+            num_available_tests > 0
+            and passed_tests
+            == num_available_tests
+        )
+
+        detailed_results[
+            "test_results"
+        ] = test_results
+
+        detailed_results[
+            "passed_tests"
+        ] = passed_tests
+
+        detailed_results[
+            "total_tests"
+        ] = num_available_tests
 
         detailed_results[
             "all_passed"
