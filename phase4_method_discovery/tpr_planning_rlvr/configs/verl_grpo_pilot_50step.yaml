@@ -92,7 +92,7 @@ actor_rollout_ref:
     prompt_length: 2048
     response_length: 512
 
-    gpu_memory_utilization: 0.22
+    gpu_memory_utilization: 0.21
     max_model_len: 3072
 
     enforce_eager: true
@@ -176,12 +176,14 @@ trainer:
 
   save_freq: 25   
 
-  resume_mode: disable
+  # resume_mode: disable
+  resume_mode: resume_path
+  resume_from_path: /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun/global_step_25
   critic_warmup: 0
 
   log_val_generations: 0      # 4
 
-  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50
+  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun
   default_hdfs_dir: null
 
 
