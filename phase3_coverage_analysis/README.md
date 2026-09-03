@@ -195,103 +195,83 @@ candidate_seed =
 
 ### Phase 3-A 분석
 
+Phase 3-A에서는 문제당 최대 16개의 plan을 stochastic sampling하고, 각 sampled plan에 대해 code는 greedy하게 생성하여 Planning Coverage@k를 측정하였다. 세 모델 모두 candidate budget이 증가할수록 coverage가 지속적으로 상승했다.
 
+| Model            |     @1 |     @2 |     @4 |     @8 |        @16 |
+| ---------------- | -----: | -----: | -----: | -----: | ---------: |
+| Qwen2.5-Coder-3B | 16.67% | 23.33% | 27.00% | 29.33% | **35.67%** |
+| Qwen2.5-3B       | 11.33% | 15.33% | 20.67% | 25.00% | **30.33%** |
+| Phi-3-mini       | 17.00% | 24.00% | 25.33% | 30.00% | **32.67%** |
+
+
+난이도별 @16 결과는 아래와 같다.
+
+| Model            |    Easy |  Medium |    Hard |
+| ---------------- | ------: | ------: | ------: |
+| Qwen2.5-Coder-3B | **78%** | **22%** |      7% |
+| Qwen2.5-3B       |     72% |     11% |      8% |
+| Phi-3-mini       |     73% |     15% | **10%** |
+
+**Findings :**
+Planning sampling은 세 모델 모두에서 single-sample 대비 coverage를 크게 증가시켰다. Qwen2.5-Coder-3B는 @1 16.67%에서 @16 35.67%로 +19.00%p, Qwen2.5-3B는 +19.00%p, Phi-3-mini는 +15.67%p 증가했다. 이는 단일 decoding에서는 발견되지 않지만 모델의 self-generated planning distribution 내부에는 성공 가능한 trajectory가 추가로 존재함을 보여준다.
+
+그러나 @16에서도 해결되지 않는 문제가 각각 193/300, 209/300, 202/300으로 여전히 많았다. 특히 Medium/Hard에서는 coverage가 낮게 유지되므로, 단순한 inference-time plan sampling만으로 planning bottleneck이 해소된다고 보기는 어렵다.
+
+또한 세 모델 모두 문제당 16개의 sampled plan이 문자열 수준에서 모두 서로 달랐으며 empty plan은 없었다. 따라서 낮은 coverage가 단순한 sampling collapse 때문이라고 보기는 어렵다. 다만 이 결과는 문자열 다양성만을 의미하며 semantic planning diversity를 직접 보장하지는 않는다.
 
 ### Phase 3-B 분석
 
+Phase 3-B에서는 Phase 1 Self-Plan에서 생성된 plan을 문제별로 하나씩 고정하고, 동일한 fixed plan으로부터 최대 16개의 code candidate를 stochastic sampling하여 Code Coverage@k를 측정하였다. 세 모델 모두 code sampling budget이 증가함에 따라 coverage가 상승했다.
+
+| Model            |     @1 |     @2 |     @4 |     @8 |        @16 |
+| ---------------- | -----: | -----: | -----: | -----: | ---------: |
+| Qwen2.5-Coder-3B | 16.00% | 19.67% | 22.00% | 25.33% | **28.00%** |
+| Qwen2.5-3B       | 10.67% | 14.67% | 17.00% | 20.33% | **24.33%** |
+| Phi-3-mini       | 12.67% | 18.00% | 22.00% | 24.67% | **27.00%** |
+
+난이도별 @16 결과는 아래와 같다.
+
+| Model            |    Easy |  Medium |   Hard |
+| ---------------- | ------: | ------: | -----: |
+| Qwen2.5-Coder-3B | **68%** | **10%** |     6% |
+| Qwen2.5-3B       |     64% |      7% |     2% |
+| Phi-3-mini       |     64% | **10%** | **7%** |
+
+**Findings :**
+동일한 plan을 고정하더라도 code sampling은 coverage를 증가시켰다. 이는 일부 실패가 plan 자체뿐 아니라 plan을 구현하는 과정의 stochastic variation을 통해서도 회복될 수 있음을 보여준다.
+
+그러나 @16에서도 Qwen2.5-Coder-3B 28.00%, Qwen2.5-3B 24.33%, Phi-3-mini 27.00%에 머물렀으며, Medium/Hard에서의 증가폭 역시 제한적이었다. 특히 Qwen2.5-3B의 Hard Code Coverage@16은 2%에 불과했다.
+
+또한 Qwen2.5-Coder-3B의 전체 successful candidate 비율은 16.29%, Phi-3-mini는 15.96%로 Planning Coverage의 candidate-level pass 비율과 크게 차이나지 않았다. 그럼에도 problem-level coverage는 Planning 쪽이 더 높았기 때문에, Planning sampling이 성공을 더 넓은 문제 집합에 분산시키는지 여부를 paired comparison으로 추가 확인할 필요가 있었다.
 
 ### Planning vs. Code 비교
 
-```bash
-python phase3_coverage_analysis/analysis/compare_planning_vs_code.py \
-  --planning-results <planning_results.jsonl> \
-  --code-results <code_results.jsonl>
-```
+동일한 candidate budget과 동일한 sampling hyperparameter 조건에서 Planning Coverage와 Code Coverage를 직접 비교하였다. 세 모델 모두에서 Planning Coverage가 Code Coverage보다 높은 결과를 보였다.
 
-동일 문제에 대한 paired comparison을 수행한다.
+| Model            | Planning@16 | Code@16 |           Δ |
+| ---------------- | ----------: | ------: | ----------: |
+| Qwen2.5-Coder-3B |  **35.67%** |  28.00% | **+7.67%p** |
+| Qwen2.5-3B       |  **30.33%** |  24.33% | **+6.00%p** |
+| Phi-3-mini       |  **32.67%** |  27.00% | **+5.67%p** |
 
-각 `k`에 대해 다음 네 가지 경우를 계산한다.
+문제별 paired comparison 결과는 다음과 같다.
 
-```text
-Both PASS
-Planning-only PASS
-Code-only PASS
-Both FAIL
-```
+| Model            | Both PASS | Planning-only | Code-only | Neither | McNemar exact p |
+| ---------------- | --------: | ------------: | --------: | ------: | --------------: |
+| Qwen2.5-Coder-3B |        77 |        **30** |         7 |     186 |     **0.00019** |
+| Qwen2.5-3B       |        67 |        **24** |         6 |     203 |     **0.00143** |
+| Phi-3-mini       |        74 |        **24** |         7 |     195 |     **0.00333** |
 
-또한 Planning Coverage와 Code Coverage의 차이가 통계적으로 유의한지 확인하기 위해 **McNemar exact test**를 수행한다.
+Best Test-Pass Ratio 역시 @16에서 세 모델 모두 Planning 쪽이 높았다.
+| Model            | Planning Best TPR@16 | Code Best TPR@16 |       Δ |
+| ---------------- | -------------------: | ---------------: | ------: |
+| Qwen2.5-Coder-3B |           **0.6221** |           0.5248 | +0.0973 |
+| Qwen2.5-3B       |           **0.5515** |           0.4810 | +0.0706 |
+| Phi-3-mini       |           **0.6014** |           0.5216 | +0.0797 |
 
+**Findings :**
+세 모델 모두에서 Planning@16이 Code@16보다 높았고, 문제별 paired comparison에서도 Planning-only 문제가 Code-only 문제보다 약 3~4배 많았다. 또한 @16 기준 exact McNemar test가 세 모델 모두 통계적으로 유의했다. 따라서 동일한 candidate budget에서 서로 다른 plan을 탐색하는 것이 하나의 fixed plan 아래에서 code implementation만 반복 sampling하는 것보다 더 넓은 문제 집합에서 성공 trajectory를 발견하는 데 효과적이라는 결과가 일관되게 관찰되었다.
 
-## 8. 결과 해석 기준
+특히 Qwen2.5-Coder-3B에서는 Planning-only 30문제, Code-only 7문제로 차이가 가장 뚜렷했고, Medium 난이도에서도 Planning@16 22% 대 Code@16 10%로 +12%p의 차이를 보였다. 반면 Hard에서는 두 방식 모두 절대 coverage가 매우 낮아, sampling alone으로 고난도 문제의 capability bottleneck을 해결하기는 어려운 것으로 나타났다.
 
-### Case 1. Planning Coverage > Code Coverage
-
-동일 candidate budget에서:
-
-```text
-Planning Coverage@k > Code Coverage@k
-```
-
-가 나타난다면, 하나의 plan 아래에서 여러 implementation을 생성하는 것보다 **서로 다른 plan을 탐색하는 것이 성공 가능한 solution을 찾는 데 더 효과적**이라는 것을 의미한다.
-
-이는 작은 코드 모델에서 planning-space exploration이 중요한 recoverable capability임을 뒷받침한다.
-
-
-### Case 2. Planning Coverage ≈ Code Coverage
-
-두 coverage curve가 유사하다면 Phase 3-A의 성능 향상을 planning exploration에만 귀속시키기 어렵다.
-
-이 경우 성능 향상은 planning 자체보다 **일반적인 best-of-N sampling 또는 inference compute 증가 효과**로 설명될 가능성이 있다.
-
-
-### Case 3. Planning / Code Coverage 모두 낮은 수준에서 포화
-
-특히 Medium/Hard 문제에서 두 방식 모두 낮은 coverage에 머문다면 sampling만으로는 해당 문제를 해결하기 어렵다는 것을 의미한다.
-
-이는 남은 실패가 다음과 같은 broader capability bottleneck과 관련될 가능성을 시사한다.
-
-- 고품질 plan 자체의 생성 능력
-- plan을 정확한 implementation으로 변환하는 능력
-- algorithmic reasoning capability
-- 기본적인 model capacity
-
-## 9. 전체 연구에서 Phase 3의 역할
-
-Phase 1에서는 다음 비교를 통해 **planning quality bottleneck**을 분석한다.
-
-```text
-Direct
-vs.
-Self-Plan
-vs.
-Teacher-Plan
-```
-
-즉, 작은 모델이 스스로 생성한 plan과 외부의 고품질 plan을 사용했을 때의 차이를 비교한다.
-
-Phase 2에서는 실패 이후의 refinement 상황에서:
-
-```text
-Feedback Regeneration
-vs.
-Self-Replanning
-vs.
-Teacher-Replanning
-```
-
-을 비교하여 **failure-time replanning bottleneck**을 분석한다.
-
-Phase 3에서는 여기서 한 단계 더 나아가 모델 내부의 sampling distribution을 탐색한다.
-
-```text
-Planning-space Exploration
-vs.
-Code-space Exploration
-```
-
-이를 통해 다음을 구분하고자 한다.
-
-1. 작은 모델이 고품질 plan을 **활용할 수 있는가**
-2. 작은 모델이 고품질 plan을 **스스로 생성하거나 재생성할 수 있는가**
-3. 모델의 self-generated distribution 내부에 **성공 가능한 planning trajectory가 존재하는가**
-4. 동일한 inference budget에서 **planning exploration과 code exploration 중 어느 쪽이 더 효과적인가**
+종합하면, 성공 가능한 trajectory의 일부는 3B 모델의 기존 planning distribution 내부에 이미 존재하지만 낮은 확률로 생성되고 있으며, planning-space exploration이 code-space exploration보다 이를 발견하는 데 더 효과적이다. 동시에 @16에서도 상당수 문제가 해결되지 않기 때문에, 다음 단계에서는 단순 sampling을 넘어 좋은 planning trajectory의 probability mass 자체를 증가시키는 학습 방법이 필요하다. 이 결과는 Phase 4에서 planning-targeted RLVR을 검토하는 직접적인 동기가 된다.
