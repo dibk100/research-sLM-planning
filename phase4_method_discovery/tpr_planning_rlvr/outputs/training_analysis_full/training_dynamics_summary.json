@@ -1,0 +1,35 @@
+{
+  "tpr": {
+    "parsed_steps": 48,
+    "expected_steps": 50,
+    "complete": false,
+    "first_step": 1,
+    "last_step": 49,
+    "group_distribution": {
+      "all_zero": 17,
+      "mixed": 31,
+      "all_one": 0,
+      "all_zero_rate": 0.3541666666666667,
+      "mixed_rate": 0.6458333333333334,
+      "all_one_rate": 0.0
+    },
+    "reward_variable_steps": 31,
+    "reward_variable_rate": 0.6458333333333334,
+    "positive_reward_steps": 31,
+    "positive_reward_rate": 0.6458333333333334,
+    "effective_update_steps": 31,
+    "effective_update_rate": 0.6458333333333334,
+    "reward_mean": 0.1772569505556021,
+    "mean_abs_pg_loss": 0.04991202517703641,
+    "mean_grad_norm": 0.10718787601217628,
+    "mean_advantage_range": 1.8426201902329922,
+    "entropy": {
+      "initial": 0.8023210167884827,
+      "final": 0.6570746302604675,
+      "delta": -0.14524638652801514
+    },
+    "mean_response_length": 260.4127604166667,
+    "mean_generation_time": 167.65702384275696,
+    "mean_step_time": 178.5363057621871
+  }
+}
