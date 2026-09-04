@@ -10,9 +10,11 @@
 PYTHONPATH="$HOME/workspace/project_sLM_planning" \
 python \
   phase4_method_discovery/vanilla_planning_rlvr/data/build_verl_dataset.py \
-  --max-samples 100 \
+  --max-samples 1000 \
   --val-ratio 0.1 \
-  --seed 42
+  --seed 42 \
+  --output-dir \
+  /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr_scale1000
 
 데이터 저장 위치
 /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/
@@ -20,19 +22,13 @@ python \
     ├── train.parquet
     ├── val.parquet
     └── dataset_manifest.json
-    
-    
-(/mnt/hdd/conda_envs/slm) dibaeck@diserver:~/workspace/project_sLM_planning$ PYTHONPATH="$HOME/workspace/project_sLM_planning" \
-python \
-  phase4_method_discovery/vanilla_planning_rlvr/data/build_verl_dataset.py \
-  --max-samples 100 \
-  --val-ratio 0.1 \
-  --seed 42
+└── vanilla_planning_rlvr_scale1000/     # 신규 1000 total → 900 train / 100 val
+
 ==========================================================================================
 Build DeepCoder TACO Vanilla Planning-RLVR Dataset
 ==========================================================================================
 input            : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/raw/deepcoder_taco_train.jsonl
-output dir       : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr
+output dir       : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr_scale1000
 prompt template  : /home/dibaeck/workspace/project_sLM_planning/prompt_templates/self_plan_plan.txt
 val ratio        : 0.1
 seed             : 42
@@ -40,21 +36,21 @@ seed             : 42
 
 [Load] stdin problems=6387
 [Validate] problem pool OK
-[Limit] using 100 problems
+[Limit] using 1000 problems
 
-[Split] train=90
-[Split] val=10
+[Split] train=900
+[Split] val=100
 [Validate] no evaluator-test schema leakage in prompts
 
 ==========================================================================================
 Dataset Build Complete
 ==========================================================================================
-stdin pool       : 100
-train            : 90
-val              : 10
-train parquet    : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/train.parquet
-val parquet      : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/val.parquet
-manifest         : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/dataset_manifest.json
+stdin pool       : 1000
+train            : 900
+val              : 100
+train parquet    : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr_scale1000/train.parquet
+val parquet      : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr_scale1000/val.parquet
+manifest         : /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr_scale1000/dataset_manifest.json
 policy output    : plan only
 reward           : frozen-coder execution 0/1
 reference code   : NOT included
