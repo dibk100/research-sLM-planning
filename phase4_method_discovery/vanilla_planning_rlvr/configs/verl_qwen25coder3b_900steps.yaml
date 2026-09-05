@@ -91,7 +91,7 @@ actor_rollout_ref:
     prompt_length: 2048
     response_length: 512
 
-    gpu_memory_utilization: 0.22
+    gpu_memory_utilization: 0.21
     max_model_len: 3072
 
     enforce_eager: true
