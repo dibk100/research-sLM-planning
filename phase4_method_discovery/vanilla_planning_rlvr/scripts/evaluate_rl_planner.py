@@ -1,4 +1,6 @@
 """
+# Phase 1 config를 재사용해서 Phase 1 dataset을 평가하는 코드
+
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase4_method_discovery/vanilla_planning_rlvr/scripts/evaluate_rl_planner.py \
   --config phase1_planning_bottleneck/configs/self_plan_qwen25Coder3b.yaml \

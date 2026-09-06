@@ -155,28 +155,43 @@ def get_function(compiled_sol, fn_name: str):  # type: ignore
     except Exception:
         return
 
+def compile_code(
+    code: str,
+    timeout: int | float,
+):
+    timeout = int(timeout)
 
-def compile_code(code: str, timeout: int):
+    if timeout <= 0:
+        raise ValueError(
+            "timeout must be greater than 0."
+        )
+
     signal.alarm(timeout)
+
     try:
-        tmp_sol = ModuleType("tmp_sol", "")
-        exec(code, tmp_sol.__dict__)
+        tmp_sol = ModuleType(
+            "tmp_sol",
+            "",
+        )
+
+        exec(
+            code,
+            tmp_sol.__dict__,
+        )
+
         if "class Solution" in code:
-            # leetcode wraps solutions in `Solution`
-            # this is a hack to check if it is leetcode solution or not
-            # currently livecodebench only supports LeetCode but
-            # else condition allows future extensibility to other platforms
-            compiled_sol = tmp_sol.Solution()
+            compiled_sol = (
+                tmp_sol.Solution()
+            )
         else:
-            # do nothing in the other case since function is accesible
             compiled_sol = tmp_sol
 
         assert compiled_sol is not None
+
     finally:
         signal.alarm(0)
 
     return compiled_sol
-
 
 def convert_line_to_decimals(line: str) -> tuple[bool, list[Decimal]]:
     try:
@@ -409,6 +424,7 @@ def grade_stdio_non_fail_fast(
             code,
             timeout,
         )
+           
     except Exception as exc:
         # Compilation/setup failure means the same generated program
         # cannot execute any reward test.
@@ -907,6 +923,13 @@ def run_test_non_fail_fast(
 
     Currently supports standard-input evaluation only.
     """
+    
+    timeout = int(timeout)
+
+    if timeout <= 0:
+        raise ValueError(
+            "timeout must be greater than 0."
+        )
 
     signal.signal(
         signal.SIGALRM,
