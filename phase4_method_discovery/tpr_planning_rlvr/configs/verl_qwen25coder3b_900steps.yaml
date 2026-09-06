@@ -1,5 +1,4 @@
-# phase4_method_discovery/tpr_planning_rlvr/configs/
-# verl_grpo_pilot_50step.yaml
+# phase4_method_discovery/tpr_planning_rlvr/configs/verl_qwen25coder3b_900steps.yaml
 
 defaults:
   - ppo_trainer
@@ -7,10 +6,10 @@ defaults:
 
 data:
   train_files:
-    - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/train.parquet
+    - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr_scale1000/train.parquet
 
   val_files:
-    - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr/val.parquet
+    - /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr_scale1000/val.parquet
 
   train_batch_size: 1
   val_batch_size: 1
@@ -152,38 +151,34 @@ reward:
     enable: false
     enable_resource_pool: false
 
-
 trainer:
   device: cuda
   nnodes: 1
   n_gpus_per_node: 1
 
   project_name: sLM-planning
-  experiment_name: tpr_planning_rlvr_lora_pilot50
+  experiment_name: tpr_qwen25Coder_scale1000_900step
 
   logger:
     - console
     - wandb
 
-  total_training_steps: 50       
+  total_training_steps: 900
   total_epochs: 1
 
   val_before_train: false
   val_only: false
 
-  # Pilot에서는 validation 비활성화
   test_freq: -1
 
-  save_freq: 25   
+  save_freq: 100  
 
-  # resume_mode: disable
-  resume_mode: resume_path
-  resume_from_path: /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun/global_step_25
+  resume_mode: auto
   critic_warmup: 0
 
   log_val_generations: 0      # 4
 
-  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun
+  default_local_dir: /mnt/hdd/project_sLM_planning/checkpoints/tpr_qwen25Coder_scale1000_900step
   default_hdfs_dir: null
 
 
