@@ -56,6 +56,7 @@ vanilla_planning_rlvr_lora_pilot50/
         ├── adapter_config.json
         └── adapter_model.safetensors
 """
+# phase4_method_discovery/vanilla_planning_rlvr/scripts/export_verl_lora.py
 
 from __future__ import annotations
 

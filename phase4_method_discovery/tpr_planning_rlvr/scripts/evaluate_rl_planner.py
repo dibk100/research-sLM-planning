@@ -1,19 +1,17 @@
 """
-# Phase 1 config를 재사용해서 Phase 1 dataset을 평가하는 코드
-
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase4_method_discovery/vanilla_planning_rlvr/scripts/evaluate_rl_planner.py \
   --config phase1_planning_bottleneck/configs/self_plan_qwen25Coder3b.yaml \
-  --adapter-path /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_lora_pilot50/exported/step50 \
+  --adapter-path /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun/exported/step50 \
   --checkpoint-label step50 \
-  --output-path /mnt/hdd/project_sLM_planning/output/phase4_rl_planner_eval/step50/results.jsonl
+  --output-path /mnt/hdd/project_sLM_planning/output/phase4_tpr_rl_planner_eval/step50/results.jsonl
   
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase4_method_discovery/vanilla_planning_rlvr/scripts/evaluate_rl_planner.py \
   --config phase1_planning_bottleneck/configs/self_plan_qwen25Coder3b.yaml \
-  --adapter-path /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_lora_pilot50/exported/step25 \
+  --adapter-path /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun/exported/step25 \
   --checkpoint-label step25 \
-  --output-path /mnt/hdd/project_sLM_planning/output/phase4_rl_planner_eval/step25/results.jsonl
+  --output-path /mnt/hdd/project_sLM_planning/output/phase4_tpr_rl_planner_eval/step25/results.jsonl
 """
 # phase4_method_discovery/vanilla_planning_rlvr/scripts/evaluate_rl_planner.py
 

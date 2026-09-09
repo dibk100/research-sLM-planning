@@ -1,27 +1,11 @@
 #!/usr/bin/env python3
 """
-PYTHONPATH="$HOME/workspace/project_sLM_planning" \
 python \
-  phase4_method_discovery/tpr_planning_rlvr/scripts/export_verl_lora.py \
+phase4_method_discovery/tpr_planning_rlvr/scripts/export_verl_lora.py \
   --checkpoint-dir \
-  /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun/global_step_25 \
+/mnt/hdd/project_sLM_planning/checkpoints/tpr_qwen25Coder_scale1000_900step/global_step_900 \
   --output-dir \
-  /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun/exported/step25 \
-  --base-model \
-  Qwen/Qwen2.5-Coder-3B-Instruct
-  
-PYTHONPATH="$HOME/workspace/project_sLM_planning" \
-python \
-  phase4_method_discovery/tpr_planning_rlvr/scripts/export_verl_lora.py \
-  --checkpoint-dir \
-  /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun/global_step_25 \
-  --output-dir \
-  /mnt/hdd/project_sLM_planning/checkpoints/tpr_planning_rlvr_lora_pilot50_rerun/exported/step25 \
-  --base-model \
-  Qwen/Qwen2.5-Coder-3B-Instruct
-        
-        
-
+/mnt/hdd/project_sLM_planning/checkpoints/tpr_qwen25Coder_scale1000_900step/exported/step900
 """
 
 from __future__ import annotations

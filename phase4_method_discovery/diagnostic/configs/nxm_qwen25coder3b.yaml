@@ -1,0 +1,39 @@
+# phase4_method_discovery/diagnostic/configs/nxm_qwen25coder3b.yaml
+
+experiment:
+  name: base_nxm_n8_m4_100problems
+  seed: 42
+
+data:
+  parquet_path: /mnt/hdd/project_sLM_planning/data/deepcoder_taco/processed/vanilla_planning_rlvr_scale1000/val.parquet
+  limit: 100
+
+model:
+  name_or_path: Qwen/Qwen2.5-Coder-3B-Instruct
+  dtype: bfloat16
+  device_map: auto
+  trust_remote_code: true
+
+prompts:
+  plan_prompt_path: prompt_templates/self_plan_plan.txt
+  code_prompt_path: prompt_templates/self_plan_code.txt
+
+planner:
+  num_plans: 8
+  max_new_tokens: 512
+  temperature: 0.7
+  top_p: 0.95
+
+coder:
+  num_codes_per_plan: 4
+  max_new_tokens: 1024
+  temperature: 0.7
+  top_p: 0.95
+
+evaluation:
+  # 반드시 Phase 4 Vanilla/TPR training config와 동일값으로 맞출 것.
+  max_reward_tests: 10
+  timeout_seconds: 6
+
+output:
+  path: phase4_method_discovery/diagnostic/outputs/pilot/base_n8_m4_100problems.jsonl
