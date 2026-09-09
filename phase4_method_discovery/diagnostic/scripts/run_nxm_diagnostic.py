@@ -16,22 +16,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-import torch
 from omegaconf import DictConfig, OmegaConf
 
 from src.execution.taco_evaluator import TACOEvaluator
-from src.models.generator import ModelGenerator
 from src.parsing.code_parser import CodeParser
 
-from phase1_planning_bottleneck.strategies.self_plan import (
-    SelfPlanningStrategy,
-)
-
-from phase4_method_discovery.vanilla_planning_rlvr.evaluation.checkpoint_dataset import (
-    load_checkpoint_eval_dataset,
-)
-
-from phase4_method_discovery.vanilla_planning_rlvr.reward.planning_execution_reward import (
+from phase4_method_discovery.vanilla_planning_rlvr.reward.planning_reward_utils import (
     build_code_prompt,
     select_reward_tests,
 )
@@ -47,30 +37,10 @@ def make_seed(
     *parts: object,
 ) -> int:
     """
-    Construct a deterministic seed from a base seed and arbitrary identifiers.
+    Build a stable 32-bit seed from the base seed and trajectory identifiers.
 
-    Python's built-in hash() is intentionally avoided because it is affected by
-    hash randomization between interpreter processes.
-
-    Examples
-    --------
-    Plan:
-        make_seed(
-            base_seed,
-            problem_id,
-            "plan",
-            plan_index,
-        )
-
-    Code:
-        make_seed(
-            base_seed,
-            problem_id,
-            "plan",
-            plan_index,
-            "code",
-            code_index,
-        )
+    Python's built-in hash() is intentionally avoided because its result can
+    change across interpreter processes.
     """
 
     text = "::".join(
@@ -82,7 +52,6 @@ def make_seed(
         text.encode("utf-8")
     ).digest()
 
-    # 32-bit unsigned seed.
     return int.from_bytes(
         digest[:4],
         byteorder="big",
@@ -93,12 +62,13 @@ def make_seed(
 def set_generation_seed(
     seed: int,
 ) -> None:
-    """
-    Set PyTorch RNG state immediately before one generation call.
-
-    For the current single-GPU diagnostic this is sufficient to make each
-    plan/code sampling trajectory explicitly reproducible.
-    """
+    # Local import is intentional.
+    #
+    # TACOEvaluator uses multiprocessing "spawn".
+    # A spawned evaluator process re-imports this main module.
+    # Keeping torch out of module-level imports prevents every
+    # evaluator child from importing the full PyTorch stack.
+    import torch
 
     torch.manual_seed(
         seed
@@ -108,11 +78,74 @@ def set_generation_seed(
         torch.cuda.manual_seed_all(
             seed
         )
+# =============================================================================
+# JSON helpers
+# =============================================================================
 
 
-# =============================================================================
-# I/O utilities
-# =============================================================================
+def _json_safe(
+    value: Any,
+) -> Any:
+    """
+    Recursively convert common non-JSON-native objects into safe values.
+
+    This is mainly defensive for evaluator metadata.
+    """
+
+    if value is None:
+        return None
+
+    if isinstance(
+        value,
+        (
+            str,
+            int,
+            float,
+            bool,
+        ),
+    ):
+        return value
+
+    if isinstance(
+        value,
+        dict,
+    ):
+        return {
+            str(key): _json_safe(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(
+        value,
+        (
+            list,
+            tuple,
+        ),
+    ):
+        return [
+            _json_safe(item)
+            for item in value
+        ]
+
+    if hasattr(
+        value,
+        "item",
+    ):
+        try:
+            return value.item()
+        except Exception:
+            pass
+
+    if hasattr(
+        value,
+        "tolist",
+    ):
+        try:
+            return value.tolist()
+        except Exception:
+            pass
+
+    return str(value)
 
 
 def write_jsonl(
@@ -130,7 +163,7 @@ def write_jsonl(
     ) as f:
         f.write(
             json.dumps(
-                record,
+                _json_safe(record),
                 ensure_ascii=False,
             )
             + "\n"
@@ -143,7 +176,7 @@ def prepare_output_path(
     overwrite: bool,
 ) -> None:
     """
-    Avoid accidentally mixing multiple diagnostic runs in one JSONL file.
+    Prevent accidental mixing of multiple experimental runs.
     """
 
     path.parent.mkdir(
@@ -166,7 +199,7 @@ def prepare_output_path(
 
 
 # =============================================================================
-# Configuration validation
+# Config validation
 # =============================================================================
 
 
@@ -288,112 +321,14 @@ def validate_config(
 
 
 # =============================================================================
-# Code-result construction helpers
+# Evaluation serialization
 # =============================================================================
-
-
-def build_generation_failure_record(
-    *,
-    code_index: int,
-    code_seed: int,
-    scheduled_tests: int,
-    error: Exception,
-) -> dict[str, Any]:
-    return {
-        "code_index": int(
-            code_index
-        ),
-        "code_seed": int(
-            code_seed
-        ),
-        "raw_output": "",
-        "generated_code": "",
-        "code_extraction_method": "none",
-        "status": "CODE_GENERATION_ERROR",
-        "passed": False,
-        "binary_reward": 0.0,
-        "scheduled_tests": int(
-            scheduled_tests
-        ),
-        "executed_tests": 0,
-        "passed_tests": 0,
-        "total_tests": 0,
-        "test_pass_ratio": 0.0,
-        "prompt_tokens": 0,
-        "completion_tokens": 0,
-        "generation_time": 0.0,
-        "execution_time": 0.0,
-        "error_message": (
-            f"{type(error).__name__}: "
-            f"{error}"
-        ),
-        "per_test_results": [],
-    }
-
-
-def build_parsing_failure_record(
-    *,
-    code_index: int,
-    code_seed: int,
-    raw_output: str,
-    generated_code: str,
-    extraction_method: str,
-    status: str,
-    scheduled_tests: int,
-    prompt_tokens: int,
-    completion_tokens: int,
-    generation_time: float,
-    error_message: str,
-) -> dict[str, Any]:
-    return {
-        "code_index": int(
-            code_index
-        ),
-        "code_seed": int(
-            code_seed
-        ),
-        "raw_output": str(
-            raw_output
-        ),
-        "generated_code": str(
-            generated_code
-        ),
-        "code_extraction_method": str(
-            extraction_method
-        ),
-        "status": str(
-            status
-        ),
-        "passed": False,
-        "binary_reward": 0.0,
-        "scheduled_tests": int(
-            scheduled_tests
-        ),
-        "executed_tests": 0,
-        "passed_tests": 0,
-        "total_tests": 0,
-        "test_pass_ratio": 0.0,
-        "prompt_tokens": int(
-            prompt_tokens
-        ),
-        "completion_tokens": int(
-            completion_tokens
-        ),
-        "generation_time": float(
-            generation_time
-        ),
-        "execution_time": 0.0,
-        "error_message": str(
-            error_message
-        ),
-        "per_test_results": [],
-    }
 
 
 def serialize_test_results(
     evaluation: Any,
 ) -> list[dict[str, Any]]:
-    serialized: list[
+    records: list[
         dict[str, Any]
     ] = []
 
@@ -401,7 +336,7 @@ def serialize_test_results(
         evaluation.test_results
         or []
     ):
-        serialized.append(
+        records.append(
             {
                 "test_index": int(
                     result.test_index
@@ -428,26 +363,236 @@ def serialize_test_results(
                     result.stderr
                     or ""
                 ),
-                "metadata": dict(
+                "metadata": _json_safe(
                     result.metadata
                     or {}
                 ),
             }
         )
 
-    return serialized
+    return records
 
 
 # =============================================================================
-# Core diagnostic
+# Failure-record builders
 # =============================================================================
 
+
+def build_code_generation_failure(
+    *,
+    code_index: int,
+    code_seed: int,
+    scheduled_tests: int,
+    error: Exception,
+) -> dict[str, Any]:
+
+    return {
+        "code_index": int(
+            code_index
+        ),
+        "code_seed": int(
+            code_seed
+        ),
+
+        "raw_output": "",
+        "generated_code": "",
+        "code_extraction_method": "none",
+
+        "status": "CODE_GENERATION_ERROR",
+
+        "passed": False,
+        "binary_reward": 0.0,
+
+        "scheduled_tests": int(
+            scheduled_tests
+        ),
+        "executed_tests": 0,
+
+        "passed_tests": 0,
+        "total_tests": 0,
+        "test_pass_ratio": 0.0,
+
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "generation_time": 0.0,
+        "execution_time": 0.0,
+
+        "error_message": (
+            f"{type(error).__name__}: "
+            f"{error}"
+        ),
+
+        "per_test_results": [],
+    }
+
+
+def build_code_parsing_failure(
+    *,
+    code_index: int,
+    code_seed: int,
+    raw_output: str,
+    generated_code: str,
+    extraction_method: str,
+    parser_status: str,
+    scheduled_tests: int,
+    prompt_tokens: int,
+    completion_tokens: int,
+    generation_time: float,
+    error_message: str,
+) -> dict[str, Any]:
+
+    return {
+        "code_index": int(
+            code_index
+        ),
+        "code_seed": int(
+            code_seed
+        ),
+
+        "raw_output": str(
+            raw_output
+        ),
+        "generated_code": str(
+            generated_code
+        ),
+        "code_extraction_method": str(
+            extraction_method
+        ),
+
+        "status": str(
+            parser_status
+        ),
+
+        "passed": False,
+        "binary_reward": 0.0,
+
+        "scheduled_tests": int(
+            scheduled_tests
+        ),
+        "executed_tests": 0,
+
+        "passed_tests": 0,
+        "total_tests": 0,
+        "test_pass_ratio": 0.0,
+
+        "prompt_tokens": int(
+            prompt_tokens
+        ),
+        "completion_tokens": int(
+            completion_tokens
+        ),
+        "generation_time": float(
+            generation_time
+        ),
+        "execution_time": 0.0,
+
+        "error_message": str(
+            error_message
+        ),
+
+        "per_test_results": [],
+    }
+
+
+def build_evaluation_failure(
+    *,
+    code_index: int,
+    code_seed: int,
+    raw_output: str,
+    generated_code: str,
+    extraction_method: str,
+    scheduled_tests: int,
+    prompt_tokens: int,
+    completion_tokens: int,
+    generation_time: float,
+    error: Exception,
+) -> dict[str, Any]:
+
+    return {
+        "code_index": int(
+            code_index
+        ),
+        "code_seed": int(
+            code_seed
+        ),
+
+        "raw_output": str(
+            raw_output
+        ),
+        "generated_code": str(
+            generated_code
+        ),
+        "code_extraction_method": str(
+            extraction_method
+        ),
+
+        "status": "EVALUATION_ERROR",
+
+        "passed": False,
+        "binary_reward": 0.0,
+
+        "scheduled_tests": int(
+            scheduled_tests
+        ),
+        "executed_tests": 0,
+
+        "passed_tests": 0,
+        "total_tests": 0,
+        "test_pass_ratio": 0.0,
+
+        "prompt_tokens": int(
+            prompt_tokens
+        ),
+        "completion_tokens": int(
+            completion_tokens
+        ),
+        "generation_time": float(
+            generation_time
+        ),
+        "execution_time": 0.0,
+
+        "error_message": (
+            f"{type(error).__name__}: "
+            f"{error}"
+        ),
+
+        "per_test_results": [],
+    }
+
+
+# =============================================================================
+# Core N x M diagnostic
+# =============================================================================
 
 def run(
     config_path: str | Path,
     *,
     overwrite: bool = False,
 ) -> None:
+
+    # -------------------------------------------------------------------------
+    # Heavy imports are intentionally local.
+    #
+    # TACOEvaluator uses multiprocessing with the "spawn" start method.
+    # Every evaluator child re-imports this script as __mp_main__.
+    #
+    # Keeping torch / transformers / ModelGenerator out of module-level
+    # imports prevents evaluator children from loading the LLM inference
+    # stack and consuming excessive host RAM.
+    # -------------------------------------------------------------------------
+
+    from src.models.generator import (
+        ModelGenerator,
+    )
+
+    from phase1_planning_bottleneck.strategies.self_plan import (
+        SelfPlanningStrategy,
+    )
+
+    from phase4_method_discovery.vanilla_planning_rlvr.evaluation.checkpoint_dataset import (
+        load_checkpoint_eval_dataset,
+    )
+    
     config_path = Path(
         config_path
     )
@@ -494,47 +639,47 @@ def run(
 
     if not examples:
         raise RuntimeError(
-            "No diagnostic problems loaded."
+            "No diagnostic examples loaded."
         )
 
     # =========================================================================
-    # 2. Shared base generator
+    # 2. Shared model
     #
-    # Initial diagnostic:
+    # Initial baseline diagnostic:
     #
-    #   planner = Qwen2.5-Coder-3B-Instruct
-    #   coder   = same frozen base checkpoint
+    #     planner = Qwen2.5-Coder-3B-Instruct
+    #     coder   = same base checkpoint
     #
-    # Only one model instance is loaded to avoid unnecessary GPU duplication.
+    # We intentionally load ONE model instance.
+    #
+    # The model is conceptually frozen during the entire diagnostic because
+    # ModelGenerator runs under torch.inference_mode().
     # =========================================================================
 
-    generator = ModelGenerator(
-        model_name_or_path=str(
-            config.model.name_or_path
-        ),
-        dtype=str(
-            config.model.dtype
-        ),
-        device_map=str(
-            config.model.device_map
-        ),
-        trust_remote_code=bool(
-            config.model.trust_remote_code
-        ),
+    generator = (
+        ModelGenerator(
+            model_name_or_path=str(
+                config.model.name_or_path
+            ),
+            dtype=str(
+                config.model.dtype
+            ),
+            device_map=str(
+                config.model.device_map
+            ),
+            trust_remote_code=bool(
+                config.model.trust_remote_code
+            ),
+        )
     )
 
     # =========================================================================
-    # 3. Planner prompt builder
+    # 3. Planner-prompt builder
     #
-    # We intentionally do NOT call SelfPlanningStrategy.run().
+    # SelfPlanningStrategy.run() is NOT used.
     #
-    # The diagnostic needs:
-    #
-    #       N plans
-    #          x
-    #       M codes per fixed plan
-    #
-    # whereas SelfPlanningStrategy.run() is a 1-plan -> 1-code strategy.
+    # We reuse only build_plan_prompt() so that the planner prompt remains
+    # consistent with the existing project pipeline.
     # =========================================================================
 
     prompt_strategy = (
@@ -582,6 +727,20 @@ def run(
         config.evaluation.max_reward_tests
     )
 
+    num_problems = len(
+        examples
+    )
+
+    expected_plan_records = (
+        num_problems
+        * num_plans
+    )
+
+    expected_code_records = (
+        expected_plan_records
+        * num_codes_per_plan
+    )
+
     print(
         "=" * 88
     )
@@ -599,7 +758,7 @@ def run(
 
     print(
         f"problems        : "
-        f"{len(examples)}"
+        f"{num_problems}"
     )
 
     print(
@@ -614,7 +773,7 @@ def run(
 
     print(
         f"trajectories    : "
-        f"{len(examples) * num_plans * num_codes_per_plan}"
+        f"{expected_code_records}"
     )
 
     print(
@@ -623,13 +782,28 @@ def run(
     )
 
     print(
+        f"planner top_p   : "
+        f"{float(config.planner.top_p)}"
+    )
+
+    print(
         f"coder temp      : "
         f"{float(config.coder.temperature)}"
     )
 
     print(
+        f"coder top_p     : "
+        f"{float(config.coder.top_p)}"
+    )
+
+    print(
         f"max reward tests: "
         f"{max_reward_tests}"
+    )
+
+    print(
+        f"timeout         : "
+        f"{int(config.evaluation.timeout_seconds)} sec"
     )
 
     print(
@@ -651,22 +825,25 @@ def run(
     ) in enumerate(
         examples
     ):
+
         print()
         print(
             "=" * 88
         )
+
         print(
             f"[Problem "
             f"{problem_index + 1}/"
-            f"{len(examples)}] "
+            f"{num_problems}] "
             f"{example.problem_id}"
         )
+
         print(
             "=" * 88
         )
 
         # ---------------------------------------------------------------------
-        # Planner prompt is identical for all N sampled plans.
+        # Same planner prompt for all N plans.
         # ---------------------------------------------------------------------
 
         plan_prompt = (
@@ -677,10 +854,12 @@ def run(
         )
 
         # ---------------------------------------------------------------------
-        # Reward-test subset is selected ONCE per problem.
+        # Select reward tests ONCE per problem.
         #
-        # Therefore every plan and every code realization for this problem
-        # is scored on exactly the same selected tests.
+        # Every plan/code realization for the same problem therefore sees the
+        # same evaluation subset.
+        #
+        # This is the same selection policy used by Phase 4 RLVR.
         # ---------------------------------------------------------------------
 
         reward_problem = (
@@ -690,6 +869,10 @@ def run(
                     max_reward_tests
                 ),
             )
+        )
+
+        available_tests = len(
+            example.private_tests
         )
 
         reward_tests = len(
@@ -704,7 +887,7 @@ def run(
 
         print(
             f"Available tests : "
-            f"{len(example.private_tests)}"
+            f"{available_tests}"
         )
 
         print(
@@ -713,12 +896,13 @@ def run(
         )
 
         # =====================================================================
-        # 6. Plan loop
+        # 6. N sampled plans
         # =====================================================================
 
         for plan_index in range(
             num_plans
         ):
+
             plan_seed = (
                 make_seed(
                     base_seed,
@@ -733,21 +917,26 @@ def run(
             )
 
             # -----------------------------------------------------------------
-            # Generate one stochastic plan.
+            # 6-1. Generate one stochastic plan.
             # -----------------------------------------------------------------
 
             try:
                 plan_generation = (
                     generator.generate(
-                        prompt=plan_prompt,
+                        prompt=(
+                            plan_prompt
+                        ),
                         max_new_tokens=int(
-                            config.planner.max_new_tokens
+                            config.planner
+                            .max_new_tokens
                         ),
                         temperature=float(
-                            config.planner.temperature
+                            config.planner
+                            .temperature
                         ),
                         top_p=float(
-                            config.planner.top_p
+                            config.planner
+                            .top_p
                         ),
                     )
                 )
@@ -755,10 +944,14 @@ def run(
             except Exception as exc:
                 raise RuntimeError(
                     "Plan generation failed: "
-                    f"problem={example.problem_id}, "
-                    f"plan_index={plan_index}, "
-                    f"seed={plan_seed}, "
-                    f"error={type(exc).__name__}: "
+                    f"problem="
+                    f"{example.problem_id}, "
+                    f"plan_index="
+                    f"{plan_index}, "
+                    f"seed="
+                    f"{plan_seed}, "
+                    f"error="
+                    f"{type(exc).__name__}: "
                     f"{exc}"
                 ) from exc
 
@@ -771,8 +964,10 @@ def run(
             if not plan:
                 raise RuntimeError(
                     "Generated empty plan: "
-                    f"problem={example.problem_id}, "
-                    f"plan_index={plan_index}"
+                    f"problem="
+                    f"{example.problem_id}, "
+                    f"plan_index="
+                    f"{plan_index}"
                 )
 
             print()
@@ -796,21 +991,19 @@ def run(
             )
 
             # -----------------------------------------------------------------
-            # IMPORTANT:
+            # 6-2. Construct code prompt ONCE.
             #
-            # Construct the code prompt exactly ONCE for this plan.
+            # This is critical for the N x M decomposition.
             #
-            # The M coder realizations therefore vary ONLY in sampling RNG.
+            # For one fixed p_i:
             #
-            # Same:
-            #   - problem
-            #   - plan
-            #   - prompt
-            #   - frozen model
-            #   - reward tests
+            #   same problem
+            #   same plan
+            #   same exact coder prompt
+            #   same frozen model
+            #   same evaluation tests
             #
-            # Different:
-            #   - code sampling seed
+            # Only the code sampling RNG changes across j=1...M.
             # -----------------------------------------------------------------
 
             code_prompt = (
@@ -818,7 +1011,9 @@ def run(
                     problem_text=(
                         example.problem
                     ),
-                    plan=plan,
+                    plan=(
+                        plan
+                    ),
                     starter_code=(
                         example.starter_code
                     ),
@@ -830,12 +1025,13 @@ def run(
             ] = []
 
             # =================================================================
-            # 7. Code realization loop
+            # 7. M coder realizations for fixed plan
             # =================================================================
 
             for code_index in range(
                 num_codes_per_plan
             ):
+
                 code_seed = (
                     make_seed(
                         base_seed,
@@ -852,28 +1048,33 @@ def run(
                 )
 
                 # -------------------------------------------------------------
-                # 7-1. Frozen coder generation
+                # 7-1. Stochastic frozen-coder generation
                 # -------------------------------------------------------------
 
                 try:
                     code_generation = (
                         generator.generate(
-                            prompt=code_prompt,
+                            prompt=(
+                                code_prompt
+                            ),
                             max_new_tokens=int(
-                                config.coder.max_new_tokens
+                                config.coder
+                                .max_new_tokens
                             ),
                             temperature=float(
-                                config.coder.temperature
+                                config.coder
+                                .temperature
                             ),
                             top_p=float(
-                                config.coder.top_p
+                                config.coder
+                                .top_p
                             ),
                         )
                     )
 
                 except Exception as exc:
                     code_record = (
-                        build_generation_failure_record(
+                        build_code_generation_failure(
                             code_index=(
                                 code_index
                             ),
@@ -883,7 +1084,9 @@ def run(
                             scheduled_tests=(
                                 reward_tests
                             ),
-                            error=exc,
+                            error=(
+                                exc
+                            ),
                         )
                     )
 
@@ -896,17 +1099,18 @@ def run(
                         f"{code_index + 1}/"
                         f"{num_codes_per_plan} "
                         f"seed={code_seed} "
-                        f"status=CODE_GENERATION_ERROR"
+                        f"status="
+                        f"CODE_GENERATION_ERROR"
                     )
 
                     continue
 
-                raw_output = (
+                raw_output = str(
                     code_generation.text
                 )
 
                 # -------------------------------------------------------------
-                # 7-2. Parse generated code
+                # 7-2. Parse code
                 # -------------------------------------------------------------
 
                 try:
@@ -918,7 +1122,7 @@ def run(
 
                 except Exception as exc:
                     code_record = (
-                        build_parsing_failure_record(
+                        build_code_parsing_failure(
                             code_index=(
                                 code_index
                             ),
@@ -929,8 +1133,10 @@ def run(
                                 raw_output
                             ),
                             generated_code="",
-                            extraction_method="none",
-                            status=(
+                            extraction_method=(
+                                "none"
+                            ),
+                            parser_status=(
                                 "CODE_PARSING_ERROR"
                             ),
                             scheduled_tests=(
@@ -964,7 +1170,8 @@ def run(
                         f"{code_index + 1}/"
                         f"{num_codes_per_plan} "
                         f"seed={code_seed} "
-                        f"status=CODE_PARSING_ERROR"
+                        f"status="
+                        f"CODE_PARSING_ERROR"
                     )
 
                     continue
@@ -974,7 +1181,7 @@ def run(
                     != "SUCCESS"
                 ):
                     code_record = (
-                        build_parsing_failure_record(
+                        build_code_parsing_failure(
                             code_index=(
                                 code_index
                             ),
@@ -986,13 +1193,15 @@ def run(
                             ),
                             generated_code=(
                                 parse_result.code
+                                or ""
                             ),
-                            extraction_method=(
+                            extraction_method=str(
                                 parse_result
                                 .extraction_method
                             ),
-                            status=str(
-                                parse_result.status
+                            parser_status=str(
+                                parse_result
+                                .status
                             ),
                             scheduled_tests=(
                                 reward_tests
@@ -1031,23 +1240,22 @@ def run(
 
                     continue
 
-                generated_code = (
+                generated_code = str(
                     parse_result.code
                 )
 
                 # -------------------------------------------------------------
-                # 7-3. Non-fail-fast TACO evaluation
+                # 7-3. Non-fail-fast execution
                 #
-                # One evaluation supplies BOTH:
+                # One execution gives both:
                 #
-                #   binary reward:
-                #       all selected tests pass
+                # binary:
+                #   all selected tests pass
                 #
-                #   dense reward:
-                #       passed_tests / total_tests
+                # TPR:
+                #   passed_tests / total_tests
                 #
-                # We use EvaluationResult.passed/status directly rather than
-                # reconstructing evaluator semantics inside the diagnostic.
+                # EvaluationResult is the authority for pass/status.
                 # -------------------------------------------------------------
 
                 try:
@@ -1079,8 +1287,11 @@ def run(
                         evaluation.total_tests
                     )
 
-                    # Non-fail-fast evaluation should always account for
-                    # every selected reward test.
+                    # ---------------------------------------------------------
+                    # Non-fail-fast evaluator must account for all selected
+                    # reward tests.
+                    # ---------------------------------------------------------
+
                     if (
                         total_tests
                         != reward_tests
@@ -1124,22 +1335,32 @@ def run(
                         else 0.0
                     )
 
-                    # Defensive consistency checks.
+                    # ---------------------------------------------------------
+                    # Consistency checks
+                    # ---------------------------------------------------------
+
                     if (
                         passed
-                        and passed_tests
-                        != total_tests
+                        and (
+                            passed_tests
+                            != total_tests
+                        )
                     ):
                         raise RuntimeError(
                             "Evaluator inconsistency: "
-                            "passed=True but not all "
-                            "tests passed."
+                            "passed=True but "
+                            "passed_tests != "
+                            "total_tests."
                         )
 
                     if (
-                        not passed
-                        and passed_tests
-                        == total_tests
+                        (
+                            not passed
+                        )
+                        and (
+                            passed_tests
+                            == total_tests
+                        )
                     ):
                         raise RuntimeError(
                             "Evaluator inconsistency: "
@@ -1175,11 +1396,11 @@ def run(
                             code_seed
                         ),
 
-                        "raw_output": str(
+                        "raw_output": (
                             raw_output
                         ),
 
-                        "generated_code": str(
+                        "generated_code": (
                             generated_code
                         ),
 
@@ -1188,7 +1409,9 @@ def run(
                             .extraction_method
                         ),
 
-                        "status": status,
+                        "status": (
+                            status
+                        ),
 
                         "passed": bool(
                             passed
@@ -1198,15 +1421,12 @@ def run(
                             binary_reward
                         ),
 
-                        # Number of tests selected for this
-                        # diagnostic trajectory.
                         "scheduled_tests": int(
                             reward_tests
                         ),
 
-                        # Code reached the evaluator and the
-                        # non-fail-fast evaluator returned one result
-                        # for every selected test.
+                        # Non-fail-fast successful invocation accounts for
+                        # every selected test.
                         "executed_tests": int(
                             total_tests
                         ),
@@ -1238,10 +1458,8 @@ def run(
                             .generation_time
                         ),
 
-                        # Current evaluator exposes this field but the
-                        # underlying rLLM wrapper does not provide useful
-                        # aggregate timing, so it is currently expected
-                        # to remain 0.0.
+                        # Current rLLM wrapper does not expose useful aggregate
+                        # timing, so this is normally 0.0.
                         "execution_time": float(
                             evaluation
                             .execution_time
@@ -1257,83 +1475,44 @@ def run(
                     }
 
                 except Exception as exc:
-                    # ---------------------------------------------------------
-                    # Infrastructure / evaluator-level failure.
-                    #
-                    # For reward-style aggregation this realization receives
-                    # binary=0 and TPR=0.
-                    #
-                    # But scheduled_tests/executed_tests remain separated so
-                    # the failure can later be distinguished from an actual
-                    # 0/N algorithmic result.
-                    # ---------------------------------------------------------
-
-                    code_record = {
-                        "code_index": int(
-                            code_index
-                        ),
-
-                        "code_seed": int(
-                            code_seed
-                        ),
-
-                        "raw_output": str(
-                            raw_output
-                        ),
-
-                        "generated_code": str(
-                            generated_code
-                        ),
-
-                        "code_extraction_method": str(
-                            parse_result
-                            .extraction_method
-                        ),
-
-                        "status": (
-                            "EVALUATION_ERROR"
-                        ),
-
-                        "passed": False,
-
-                        "binary_reward": 0.0,
-
-                        "scheduled_tests": int(
-                            reward_tests
-                        ),
-
-                        "executed_tests": 0,
-
-                        "passed_tests": 0,
-
-                        "total_tests": 0,
-
-                        "test_pass_ratio": 0.0,
-
-                        "prompt_tokens": int(
-                            code_generation
-                            .prompt_tokens
-                        ),
-
-                        "completion_tokens": int(
-                            code_generation
-                            .completion_tokens
-                        ),
-
-                        "generation_time": float(
-                            code_generation
-                            .generation_time
-                        ),
-
-                        "execution_time": 0.0,
-
-                        "error_message": (
-                            f"{type(exc).__name__}: "
-                            f"{exc}"
-                        ),
-
-                        "per_test_results": [],
-                    }
+                    code_record = (
+                        build_evaluation_failure(
+                            code_index=(
+                                code_index
+                            ),
+                            code_seed=(
+                                code_seed
+                            ),
+                            raw_output=(
+                                raw_output
+                            ),
+                            generated_code=(
+                                generated_code
+                            ),
+                            extraction_method=str(
+                                parse_result
+                                .extraction_method
+                            ),
+                            scheduled_tests=(
+                                reward_tests
+                            ),
+                            prompt_tokens=int(
+                                code_generation
+                                .prompt_tokens
+                            ),
+                            completion_tokens=int(
+                                code_generation
+                                .completion_tokens
+                            ),
+                            generation_time=float(
+                                code_generation
+                                .generation_time
+                            ),
+                            error=(
+                                exc
+                            ),
+                        )
+                    )
 
                 code_records.append(
                     code_record
@@ -1406,20 +1585,6 @@ def run(
                 )
             )
 
-            num_parsing_errors = sum(
-                1
-                for item
-                in code_records
-                if (
-                    item["status"]
-                    in {
-                        "CODE_PARSING_ERROR",
-                        "NO_CODE_FOUND",
-                        "EMPTY_CODE",
-                    }
-                )
-            )
-
             num_evaluation_errors = sum(
                 1
                 for item
@@ -1430,8 +1595,36 @@ def run(
                 )
             )
 
+            # Parsing failures are identified through executed_tests=0 while
+            # the failure occurred after code generation but before evaluator.
+            num_parsing_errors = sum(
+                1
+                for item
+                in code_records
+                if (
+                    item["executed_tests"]
+                    == 0
+                    and item["status"]
+                    not in {
+                        "CODE_GENERATION_ERROR",
+                        "EVALUATION_ERROR",
+                    }
+                )
+            )
+
+            # Number of coder realizations that actually reached the evaluator.
+            num_evaluated_codes = sum(
+                1
+                for item
+                in code_records
+                if (
+                    item["executed_tests"]
+                    > 0
+                )
+            )
+
             # -----------------------------------------------------------------
-            # One JSONL record = one (problem, plan).
+            # One JSONL line = one (problem, plan).
             # -----------------------------------------------------------------
 
             record: dict[
@@ -1447,11 +1640,13 @@ def run(
                 ),
 
                 "planner_model": str(
-                    config.model.name_or_path
+                    config.model
+                    .name_or_path
                 ),
 
                 "coder_model": str(
-                    config.model.name_or_path
+                    config.model
+                    .name_or_path
                 ),
 
                 "problem_index": int(
@@ -1478,12 +1673,18 @@ def run(
                     plan_seed
                 ),
 
-                "plan": str(
+                "plan": (
                     plan
                 ),
 
-                "plan_prompt": str(
+                # Store prompts during diagnostic development.
+                # These can be removed later if JSONL size becomes large.
+                "plan_prompt": (
                     plan_prompt
+                ),
+
+                "coder_prompt": (
+                    code_prompt
                 ),
 
                 "plan_prompt_tokens": int(
@@ -1501,36 +1702,43 @@ def run(
                     .generation_time
                 ),
 
-                "coder_prompt": str(
-                    code_prompt
+                "available_tests": int(
+                    available_tests
+                ),
+
+                "reward_tests": int(
+                    reward_tests
                 ),
 
                 "num_codes": int(
                     num_codes_per_plan
                 ),
 
+                "num_evaluated_codes": int(
+                    num_evaluated_codes
+                ),
+
                 "num_passed_codes": int(
                     num_passed_codes
                 ),
 
-                # q_i^{binary}
+                # -------------------------------------------------------------
+                # q_i^(binary)
+                #
+                # Empirical probability that a frozen-coder realization
+                # conditioned on plan p_i solves every selected test.
+                # -------------------------------------------------------------
                 "plan_success_rate": float(
                     plan_success_rate
                 ),
 
-                # q_i^{TPR}
+                # -------------------------------------------------------------
+                # q_i^(TPR)
+                #
+                # Mean partial-test utility over M code realizations.
+                # -------------------------------------------------------------
                 "mean_test_pass_ratio": float(
                     mean_test_pass_ratio
-                ),
-
-                "available_tests": int(
-                    len(
-                        example.private_tests
-                    )
-                ),
-
-                "reward_tests": int(
-                    reward_tests
                 ),
 
                 "num_generation_errors": int(
@@ -1593,37 +1801,32 @@ def run(
                 f"q_binary="
                 f"{plan_success_rate:.4f} "
                 f"q_tpr="
-                f"{mean_test_pass_ratio:.4f}"
+                f"{mean_test_pass_ratio:.4f} "
+                f"evaluated="
+                f"{num_evaluated_codes}/"
+                f"{num_codes_per_plan}"
             )
 
     # =========================================================================
-    # 9. Final run summary
+    # 9. Final summary
     # =========================================================================
-
-    expected_plan_records = (
-        len(examples)
-        * num_plans
-    )
-
-    expected_code_records = (
-        expected_plan_records
-        * num_codes_per_plan
-    )
 
     print()
     print(
         "=" * 88
     )
+
     print(
         "Diagnostic completed"
     )
+
     print(
         "=" * 88
     )
 
     print(
         f"Problems     : "
-        f"{len(examples)}"
+        f"{num_problems}"
     )
 
     print(
@@ -1655,8 +1858,8 @@ def parse_args() -> argparse.Namespace:
     parser = (
         argparse.ArgumentParser(
             description=(
-                "Run Phase 4 N-plans x "
-                "M-frozen-coder-codes diagnostic."
+                "Phase 4 N-plans x M-frozen-coder-codes "
+                "diagnostic."
             )
         )
     )
@@ -1665,7 +1868,7 @@ def parse_args() -> argparse.Namespace:
         "--config",
         required=True,
         help=(
-            "Path to N x M diagnostic YAML config."
+            "Path to the N x M diagnostic YAML config."
         ),
     )
 
@@ -1673,7 +1876,7 @@ def parse_args() -> argparse.Namespace:
         "--overwrite",
         action="store_true",
         help=(
-            "Replace an existing output JSONL file."
+            "Replace an existing diagnostic JSONL output."
         ),
     )
 
@@ -1684,7 +1887,9 @@ if __name__ == "__main__":
     args = parse_args()
 
     run(
-        config_path=args.config,
+        config_path=(
+            args.config
+        ),
         overwrite=bool(
             args.overwrite
         ),
