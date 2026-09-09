@@ -149,7 +149,7 @@ project_sLM_planning/
 ├── phase4_method_discovery/                 # RL training framework (verl + vLLM, GRPO)
 │   │                                        # 구조: x → [Trainable Planner] → P → [Frozen Coder] → C → R(C)
 │   ├── vanilla_planning_rlvr/               # (A) binary execution reward R(C) ∈ {0,1}
-│   │   ├── configs/                         #   verl GRPO config (smoke / pilot50 / 900step)
+│   │   ├── configs/                         #   실험 config + verl hydra config (900step)
 │   │   ├── data/
 │   │   │   ├── download_deepcoder_taco.py
 │   │   │   ├── eda_deepcoder_taco.py
@@ -170,19 +170,21 @@ project_sLM_planning/
 │   │   └── README.md
 │   │
 │   ├── tpr_planning_rlvr/                   # (B) TPR(test pass rate) dense reward 변형
-│   │   ├── configs/verl_grpo_pilot_50step.yaml
+│   │   │                                    #   reward/manager만 교체하고 data·workers·logging은 vanilla 재사용
+│   │   ├── configs/                         #   실험 config + verl hydra config (900step)
 │   │   ├── reward/
 │   │   │   ├── planning_tpr_reward.py
 │   │   │   ├── planning_tpr_reward_manager.py
 │   │   │   └── test_non_fail_fast_equivalence.py   # early-stop 제거 동등성 테스트
 │   │   ├── evaluation/rl_planner_strategy.py
-│   │   ├── scripts/                         #   run_grpo_pilot.sh, evaluate_rl_planner.py, export_verl_lora.py
+│   │   ├── scripts/                         #   run_training.sh, run_grpo_pilot.sh,
+│   │   │                                    #   evaluate_rl_planner.py, export_verl_lora.py
 │   │   ├── analysis/                        #   analyze_rl_planner_eval / training_dynamics / training_trajectory
-│   │   └── outputs/                         #   training log, trajectory_analysis(png+csv), analysis csv
+│   │   └── outputs/                         #   학습 로그
 │   │
-│   ├── diagnostic/                          # (비어 있음)
+│   ├── diagnostic/README.md                 # RQ-D1~D3 (plan별 downstream 성공률 진단) 설계 메모
 │   ├── archive/                             # TACO/reward 초기 sanity·smoke 결과
-│   └── README.md
+│   └── README.md                            # ← Phase4 상세 폴더 구조 · 실행 환경
 │
 ├── .gitignore                               # *.jsonl, *.log, __pycache__ 등 실험 산출물 제외
 └── README.md
@@ -225,7 +227,7 @@ project_sLM_planning/
 - config의 `output.path`는 절대경로(HDD)로 둔다. repo 안에 `outputs/` 심볼릭 링크는 만들지 않는다.
 - 어떤 체크포인트로 만든 run인지는 config가 아니라 각 run의 `run_metadata.json`으로 확인한다.
 - `results.jsonl`은 8~24GB 수준이므로 통째로 로드하지 말고 스트리밍으로 파싱한다.
-- Phase4는 예외적으로 학습 로그/분석 산출물이 repo 안 `phase4_method_discovery/*/outputs/`에 남아 있다(csv·png·json 위주, 용량 작음).
+- Phase4는 예외적으로 학습 로그/분석 산출물이 repo 안 `phase4_method_discovery/*/outputs/`에 남아 있다(log·csv·jsonl, 용량 작음). 학습 환경도 Phase1–3(`slm`)과 달리 `/mnt/hdd/conda_envs/planning_rlvr`를 쓴다 — 자세한 내용은 `phase4_method_discovery/README.md`.
 
 나중에 아래와 같이 리드미 작성하기.
 
