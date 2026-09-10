@@ -1,0 +1,161 @@
+{
+  "input_path": "phase4_method_discovery/diagnostic/outputs/pilot/base_n8_m4_100problems.jsonl",
+  "num_problems": 100,
+  "num_plan_records": 800,
+  "coverage_distribution": {
+    "NO_COVERAGE": {
+      "count": 61,
+      "rate": 0.61
+    },
+    "UNSTABLE_COVERAGE": {
+      "count": 17,
+      "rate": 0.17
+    },
+    "STABLE_COVERAGE": {
+      "count": 22,
+      "rate": 0.22
+    }
+  },
+  "group_summaries": {
+    "ALL": {
+      "group": "ALL",
+      "num_problems": 100,
+      "mean_q_binary": 0.121875,
+      "mean_best_q_binary": 0.2625,
+      "mean_best_mean_gap_binary": 0.140625,
+      "mean_q_tpr": 0.1903125,
+      "mean_best_q_tpr": 0.36875,
+      "mean_best_mean_gap_tpr": 0.1784375,
+      "mean_between_plan_var_binary": 0.0226171875,
+      "mean_within_plan_coder_var_binary": 0.02890625,
+      "between_share_binary": 0.4389689158453373,
+      "within_share_binary": 0.5610310841546626,
+      "mean_between_plan_var_tpr": 0.0226294921875,
+      "mean_num_usable_plans": 1.63,
+      "mean_num_stable_075_plans": 0.73,
+      "binary_zero_tpr_positive_rate": 0.33124018838304553,
+      "binary_zero_tpr_ge_025_rate": 0.09105180533751962,
+      "binary_zero_tpr_ge_050_rate": 0.03610675039246468,
+      "best_plan_index_disagreement_rate": 0.4
+    },
+    "NO_COVERAGE": {
+      "group": "NO_COVERAGE",
+      "num_problems": 61,
+      "mean_q_binary": 0.0,
+      "mean_best_q_binary": 0.0,
+      "mean_best_mean_gap_binary": 0.0,
+      "mean_q_tpr": 0.03934426229508197,
+      "mean_best_q_tpr": 0.10655737704918034,
+      "mean_best_mean_gap_tpr": 0.06721311475409836,
+      "mean_between_plan_var_binary": 0.0,
+      "mean_within_plan_coder_var_binary": 0.0,
+      "between_share_binary": 0.0,
+      "within_share_binary": 0.0,
+      "mean_between_plan_var_tpr": 0.004469454405737705,
+      "mean_num_usable_plans": 0.0,
+      "mean_num_stable_075_plans": 0.0,
+      "binary_zero_tpr_positive_rate": 0.2766393442622951,
+      "binary_zero_tpr_ge_025_rate": 0.036885245901639344,
+      "binary_zero_tpr_ge_050_rate": 0.014344262295081968,
+      "best_plan_index_disagreement_rate": 0.5081967213114754
+    },
+    "ANY_COVERAGE": {
+      "group": "ANY_COVERAGE",
+      "num_problems": 39,
+      "mean_q_binary": 0.3125,
+      "mean_best_q_binary": 0.6730769230769231,
+      "mean_best_mean_gap_binary": 0.3605769230769231,
+      "mean_q_tpr": 0.4264423076923077,
+      "mean_best_q_tpr": 0.7788461538461539,
+      "mean_best_mean_gap_tpr": 0.3524038461538462,
+      "mean_between_plan_var_binary": 0.057992788461538464,
+      "mean_within_plan_coder_var_binary": 0.07411858974358974,
+      "between_share_binary": 0.4389689158453374,
+      "within_share_binary": 0.5610310841546626,
+      "mean_between_plan_var_tpr": 0.05103365384615385,
+      "mean_num_usable_plans": 4.17948717948718,
+      "mean_num_stable_075_plans": 1.8717948717948718,
+      "binary_zero_tpr_positive_rate": 0.5100671140939598,
+      "binary_zero_tpr_ge_025_rate": 0.2684563758389262,
+      "binary_zero_tpr_ge_050_rate": 0.10738255033557047,
+      "best_plan_index_disagreement_rate": 0.23076923076923078
+    },
+    "UNSTABLE_COVERAGE": {
+      "group": "UNSTABLE_COVERAGE",
+      "num_problems": 17,
+      "mean_q_binary": 0.08272058823529412,
+      "mean_best_q_binary": 0.3382352941176471,
+      "mean_best_mean_gap_binary": 0.2555147058823529,
+      "mean_q_tpr": 0.26544117647058824,
+      "mean_best_q_tpr": 0.5808823529411765,
+      "mean_best_mean_gap_tpr": 0.3154411764705882,
+      "mean_between_plan_var_binary": 0.016486672794117647,
+      "mean_within_plan_coder_var_binary": 0.0546875,
+      "between_share_binary": 0.23163841807909608,
+      "within_share_binary": 0.768361581920904,
+      "mean_between_plan_var_tpr": 0.03582720588235294,
+      "mean_num_usable_plans": 2.176470588235294,
+      "mean_num_stable_075_plans": 0.0,
+      "binary_zero_tpr_positive_rate": 0.5757575757575758,
+      "binary_zero_tpr_ge_025_rate": 0.3333333333333333,
+      "binary_zero_tpr_ge_050_rate": 0.13131313131313133,
+      "best_plan_index_disagreement_rate": 0.5294117647058824
+    },
+    "STABLE_COVERAGE": {
+      "group": "STABLE_COVERAGE",
+      "num_problems": 22,
+      "mean_q_binary": 0.4900568181818182,
+      "mean_best_q_binary": 0.9318181818181818,
+      "mean_best_mean_gap_binary": 0.44176136363636365,
+      "mean_q_tpr": 0.5508522727272728,
+      "mean_best_q_tpr": 0.9318181818181818,
+      "mean_best_mean_gap_tpr": 0.3809659090909091,
+      "mean_between_plan_var_binary": 0.09006569602272728,
+      "mean_within_plan_coder_var_binary": 0.08913352272727272,
+      "between_share_binary": 0.5026009412930394,
+      "within_share_binary": 0.4973990587069606,
+      "mean_between_plan_var_tpr": 0.06278409090909091,
+      "mean_num_usable_plans": 5.7272727272727275,
+      "mean_num_stable_075_plans": 3.3181818181818183,
+      "binary_zero_tpr_positive_rate": 0.38,
+      "binary_zero_tpr_ge_025_rate": 0.14,
+      "binary_zero_tpr_ge_050_rate": 0.06,
+      "best_plan_index_disagreement_rate": 0.0
+    }
+  },
+  "reward_resolution": {
+    "total_plans": 800,
+    "binary_zero_plans": 637,
+    "binary_zero_plan_rate": 0.79625,
+    "binary_zero_but_tpr_positive": 211,
+    "binary_zero_but_tpr_positive_rate_within_binary_zero": 0.33124018838304553,
+    "binary_zero_but_tpr_ge_025": 58,
+    "binary_zero_but_tpr_ge_025_rate_within_binary_zero": 0.09105180533751962,
+    "binary_zero_but_tpr_ge_050": 23,
+    "binary_zero_but_tpr_ge_050_rate_within_binary_zero": 0.03610675039246468,
+    "binary_positive_plans": 163,
+    "binary_positive_plan_rate": 0.20375,
+    "mean_tpr_among_binary_zero_plans": 0.07009419152276296
+  },
+  "code_status_summary": {
+    "total_codes": 3200,
+    "status_distribution": {
+      "WRONG_ANSWER": {
+        "count": 1636,
+        "ratio": 0.51125
+      },
+      "RUNTIME_ERROR": {
+        "count": 956,
+        "ratio": 0.29875
+      },
+      "PASS": {
+        "count": 390,
+        "ratio": 0.121875
+      },
+      "TIME_LIMIT_EXCEEDED": {
+        "count": 218,
+        "ratio": 0.068125
+      }
+    }
+  }
+}
