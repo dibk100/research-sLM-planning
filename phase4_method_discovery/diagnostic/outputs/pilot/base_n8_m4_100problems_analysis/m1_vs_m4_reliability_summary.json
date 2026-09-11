@@ -1,0 +1,108 @@
+{
+  "input_path": "phase4_method_discovery/diagnostic/outputs/pilot/base_n8_m4_100problems.jsonl",
+  "num_problems": 100,
+  "num_plans": 800,
+  "M": 4,
+  "num_code_trajectories": 3200,
+  "interpretation_note": "M=4 is an empirical reference estimate, not ground-truth expected plan utility. Leave-one-out statistics avoid direct self-inclusion.",
+  "binary": {
+    "estimation_reliability": {
+      "reward_type": "binary",
+      "num_plans": 800,
+      "num_single_rollout_observations": 3200,
+      "m1_vs_m4_mae": 0.0578125,
+      "m1_vs_m4_rmse": 0.17001838135919303,
+      "m1_vs_m4_pearson": 0.8543432350959831,
+      "m1_vs_m4_spearman": 0.7846786148201337,
+      "m1_vs_loo_mae": 0.07708333333333334,
+      "m1_vs_loo_rmse": 0.22669117514559073,
+      "m1_vs_loo_pearson": 0.73402293120447,
+      "m1_vs_loo_spearman": 0.6728138464682787
+    },
+    "pairwise_ordering": {
+      "reward_type": "binary",
+      "comparable_plan_pairs": 578,
+      "single_rollout_pair_trials": 9248,
+      "correct_order_count": 4222,
+      "tie_count": 4836,
+      "inversion_count": 190,
+      "correct_order_rate": 0.4565311418685121,
+      "tie_rate": 0.5229238754325259,
+      "inversion_rate": 0.020544982698961937,
+      "inversion_rate_excluding_ties": 0.04306436990027199
+    },
+    "m1_plan_selection": {
+      "reward_type": "binary",
+      "num_trials_per_problem": 1000,
+      "total_selection_trials": 100000,
+      "mean_oracle_m4_utility": 0.2625,
+      "mean_m1_selected_plan_m4_utility": 0.1995925,
+      "mean_selection_regret": 0.0629075,
+      "exact_m4_best_plan_hit_rate": 0.82642,
+      "false_no_signal_rate_on_nonzero_oracle_problems": 0.2387179487179487
+    },
+    "threshold_false_zero": {
+      "q4_ge_0.25": {
+        "eligible_plans": 163,
+        "single_rollout_observations": 652,
+        "m1_zero_count": 262,
+        "m1_false_zero_rate": 0.401840490797546
+      },
+      "q4_ge_0.50": {
+        "eligible_plans": 104,
+        "single_rollout_observations": 416,
+        "m1_zero_count": 85,
+        "m1_false_zero_rate": 0.20432692307692307
+      },
+      "q4_ge_0.75": {
+        "eligible_plans": 73,
+        "single_rollout_observations": 292,
+        "m1_zero_count": 23,
+        "m1_false_zero_rate": 0.07876712328767123
+      },
+      "q4_ge_1.00": {
+        "eligible_plans": 50,
+        "single_rollout_observations": 200,
+        "m1_zero_count": 0,
+        "m1_false_zero_rate": 0.0
+      }
+    }
+  },
+  "tpr": {
+    "estimation_reliability": {
+      "reward_type": "tpr",
+      "num_plans": 800,
+      "num_single_rollout_observations": 3200,
+      "m1_vs_m4_mae": 0.08228125,
+      "m1_vs_m4_rmse": 0.17865819320702872,
+      "m1_vs_m4_pearson": 0.8601376501027533,
+      "m1_vs_m4_spearman": 0.7996777366352227,
+      "m1_vs_loo_mae": 0.10970833333333334,
+      "m1_vs_loo_rmse": 0.2382109242760383,
+      "m1_vs_loo_pearson": 0.7449022944526903,
+      "m1_vs_loo_spearman": 0.6952738542767015
+    },
+    "pairwise_ordering": {
+      "reward_type": "tpr",
+      "comparable_plan_pairs": 1365,
+      "single_rollout_pair_trials": 21840,
+      "correct_order_count": 11115,
+      "tie_count": 9065,
+      "inversion_count": 1660,
+      "correct_order_rate": 0.5089285714285714,
+      "tie_rate": 0.4150641025641026,
+      "inversion_rate": 0.076007326007326,
+      "inversion_rate_excluding_ties": 0.1299412915851272
+    },
+    "m1_plan_selection": {
+      "reward_type": "tpr",
+      "num_trials_per_problem": 1000,
+      "total_selection_trials": 100000,
+      "mean_oracle_m4_utility": 0.36875,
+      "mean_m1_selected_plan_m4_utility": 0.2942655,
+      "mean_selection_regret": 0.0744845,
+      "exact_m4_best_plan_hit_rate": 0.6385,
+      "false_no_signal_rate_on_nonzero_oracle_problems": 0.16830555555555557
+    }
+  }
+}

@@ -155,6 +155,7 @@ project_sLM_planning/
 │   │   │   ├── eda_deepcoder_taco.py
 │   │   │   └── build_verl_dataset.py        #   verl parquet 데이터셋 빌드
 │   │   ├── reward/
+│   │   │   ├── planning_reward_utils.py     #   프롬프트/테스트 선택 공용 유틸 (tpr·diagnostic가 재사용)
 │   │   │   ├── planning_execution_reward.py #   plan→coder→evaluator→reward
 │   │   │   └── planning_reward_manager.py   #   verl reward manager 훅
 │   │   ├── workers/frozen_coder_worker.py   #   고정 coder rollout worker
@@ -179,11 +180,18 @@ project_sLM_planning/
 │   │   ├── evaluation/rl_planner_strategy.py
 │   │   ├── scripts/                         #   run_training.sh, run_grpo_pilot.sh,
 │   │   │                                    #   evaluate_rl_planner.py, export_verl_lora.py
-│   │   ├── analysis/                        #   analyze_rl_planner_eval / training_dynamics / training_trajectory
-│   │   └── outputs/                         #   학습 로그
+│   │   ├── analysis/                        #   analyze_full_training / rl_planner_eval / training_dynamics
+│   │   │                                    #   / training_trajectory / compare_val100(3자 비교)
+│   │   └── outputs/                         #   학습 로그 · metrics csv · checkpoint_eval
 │   │
-│   ├── diagnostic/README.md                 # RQ-D1~D3 (plan별 downstream 성공률 진단) 설계 메모
-│   ├── archive/                             # TACO/reward 초기 sanity·smoke 결과
+│   ├── diagnostic/                          # (C) 학습과 무관한 진단: plan N개 × code M개 샘플링
+│   │   │                                    #   RQ-D1~D3 (plan 변동 / coder 안정성 / reward 식별력)
+│   │   ├── configs/nxm_qwen25coder3b.yaml
+│   │   ├── scripts/run_nxm_diagnostic.py
+│   │   ├── analysis/                        #   nxm_diagnostic / m1_reward_reliability / coverage_conditioned
+│   │   ├── outputs/                         #   sanity/, pilot/(n8×m{2,4}, 10·100문제 + *_analysis)
+│   │   └── README.md
+│   │
 │   └── README.md                            # ← Phase4 상세 폴더 구조 · 실행 환경
 │
 ├── .gitignore                               # *.jsonl, *.log, __pycache__ 등 실험 산출물 제외

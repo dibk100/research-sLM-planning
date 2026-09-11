@@ -1,0 +1,9 @@
+transition,description,count,ratio
+PPP,stable_success,10,0.1
+PPF,tpr_regression,0,0.0
+PFP,vanilla_regression,0,0.0
+PFF,both_rl_regression,0,0.0
+FPP,common_rl_recovery,1,0.01
+FPF,vanilla_only_recovery,0,0.0
+FFP,tpr_only_recovery,0,0.0
+FFF,persistent_failure,89,0.89
