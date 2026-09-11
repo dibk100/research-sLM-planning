@@ -41,10 +41,17 @@ phase4_method_discovery/diagnostic/
 ├── scripts/
 │   └── run_nxm_diagnostic.py
 ├── analysis/
-│   └── analyze_nxm_diagnostic.py      # sanity 후 작성
+│   ├── analyze_nxm_diagnostic.py          # plan/problem 단위 기본 metric
+│   ├── analyze_m1_reward_reliability.py   # M=1 reward의 plan 선택 신뢰도 시뮬레이션
+│   └── analyze_coverage_conditioned.py    # coverage 조건부 metric
 ├── outputs/
 │   ├── sanity/
+│   │   └── base_n2_m2.jsonl
 │   └── pilot/
+│       ├── base_n8_m2_10problems.jsonl
+│       ├── base_n8_m4_10problems.jsonl
+│       ├── base_n8_m4_100problems.jsonl
+│       └── <run>_analysis/                # 위 analysis 3종의 csv·json 산출물
 └── README.md
 ```
 

@@ -1,0 +1,13 @@
+category,description,count,ratio
+tpr_only_improvement,TPR improves over Base while Vanilla does not.,6,0.06741573033707865
+vanilla_only_improvement,Vanilla improves over Base while TPR does not.,7,0.07865168539325842
+tpr_dominant_improvement,"Both RL variants improve over Base, but TPR improves more than Vanilla.",4,0.0449438202247191
+vanilla_dominant_improvement,"Both RL variants improve over Base, but Vanilla improves more than TPR.",2,0.02247191011235955
+both_equal_improvement,Both RL variants improve over Base by the same amount.,4,0.0449438202247191
+crossed,One RL variant improves while the other degrades relative to Base.,1,0.011235955056179775
+both_degraded,Both RL variants have lower TPR than Base.,6,0.06741573033707865
+tpr_degraded,TPR is worse than Base while Vanilla is not worse.,4,0.0449438202247191
+vanilla_degraded,Vanilla is worse than Base while TPR is not worse.,4,0.0449438202247191
+unchanged_nonzero,All three have the same non-zero test-pass ratio.,25,0.2808988764044944
+all_zero,"Base, Vanilla, and TPR all have zero test-pass ratio.",26,0.29213483146067415
+other_mixed,Mixed partial-correctness pattern not covered by the main categories.,0,0.0

@@ -4,16 +4,18 @@
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase4_method_discovery/vanilla_planning_rlvr/scripts/evaluate_rl_planner.py \
   --config phase1_planning_bottleneck/configs/self_plan_qwen25Coder3b.yaml \
-  --adapter-path /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_lora_pilot50/exported/step50 \
-  --checkpoint-label step50 \
-  --output-path /mnt/hdd/project_sLM_planning/output/phase4_rl_planner_eval/step50/results.jsonl
+  --adapter-path /mnt/hdd/project_sLM_planning/checkpoints/vanilla_qwen25Coder_scale1000_900step/exported/step900 \
+  --checkpoint-label vanilla_step900 \
+  --output-path /mnt/hdd/project_sLM_planning/output/phase4_scaleup_lcb300/vanilla_step900/results.jsonl
   
 PYTHONPATH="$HOME/workspace/project_sLM_planning:$HOME/workspace/LiveCodeBench" \
 python phase4_method_discovery/vanilla_planning_rlvr/scripts/evaluate_rl_planner.py \
   --config phase1_planning_bottleneck/configs/self_plan_qwen25Coder3b.yaml \
-  --adapter-path /mnt/hdd/project_sLM_planning/checkpoints/vanilla_planning_rlvr_lora_pilot50/exported/step25 \
-  --checkpoint-label step25 \
-  --output-path /mnt/hdd/project_sLM_planning/output/phase4_rl_planner_eval/step25/results.jsonl
+  --adapter-path /mnt/hdd/project_sLM_planning/checkpoints/tpr_qwen25Coder_scale1000_900step/exported/step900 \
+  --checkpoint-label tpr_step900 \
+  --output-path /mnt/hdd/project_sLM_planning/output/phase4_scaleup_lcb300/tpr_step900/results.jsonl
+
+  
 """
 # phase4_method_discovery/vanilla_planning_rlvr/scripts/evaluate_rl_planner.py
 
